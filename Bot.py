@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from the .env file
-load_dotenv('secrets.env')
+load_dotenv('venv/secrets.env')
 
 # Access secrets using os.environ
 bot_token = os.environ.get('BOT_TOKEN')
