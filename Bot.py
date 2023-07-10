@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from the .env file
-load_dotenv('secrets.env')
+load_dotenv('venv/secrets.env')
 
 # Access secrets using os.environ
 bot_token = os.environ.get('BOT_TOKEN')
@@ -20,10 +20,10 @@ async def on_ready():
     print(f'Bot ID: {bot.user.id}')
     print('------')
 
-# Command: !htolox
+# Command: !htotoxic
 @bot.command()
-async def htolox(ctx):
-    await ctx.send('zeniya')
+async def htotoxic(ctx):
+    await ctx.send('Pavel')
 
 # Event: Message is received
 @bot.event
@@ -45,4 +45,3 @@ async def on_guild_join(guild):
 print(bot_token)
 # Run the bot using your bot token
 bot.run(bot_token)
-
