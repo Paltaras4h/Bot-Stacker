@@ -8,38 +8,59 @@ with open(os.getcwd()+'/venv/configuration.json') as f:
 
 config = data['dataBaseConfig']
 
-def ConnectToDataBase(autoCommit = True):# Connect to the MySQL database
+def connect_to_data_base(autoCommit = True):# Connect to the MySQL database
     cnx = mysql.connector.connect(**config)
     cnx.autocommit = autoCommit
     return cnx
 
-def select_user(user_id):
-    cnx = ConnectToDataBase()
+def get_connection(cnx, auto_commit = True):
+    if cnx:
+        return cnx, False
+    else:
+        return connect_to_data_base(auto_commit), True
+
+def select_user(user_id, cnx = None):
+    cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute("SELECT * FROM user WHERE Id_User = %s;", (user_id,))
         users = cur.fetchall()
-    cnx.close()
+    if closeable: cnx.close()
     if len(users)==0:
         return None
     else:
         return users[0]
 
-def insert_user(user):
-    cnx = ConnectToDataBase()
+def insert_user(user, cnx = None):
+    cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute("INSERT INTO user (Id_User, User_Name) VALUES(%s, %s);", (str(user.id),user.name))
-    cnx.close()
+    if closeable: cnx.close()
 
-def update_user(user):
-    cnx = ConnectToDataBase()
+def update_user(user, cnx = None):
+    cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
-        cur.execute("UPDATE user SET (Id_User, User_Name, Last_Timestamp_From, Last_Timestamp_To",
-                    (user.id, user.name, user.default_time_from, user.default_time_to))
-    cnx.close()
+        cur.execute("UPDATE user SET User_Name = %s, Last_Timestamp_From = %s, Last_Timestamp_To = %s WHERE Id_User = %s;",
+                    (user.name, user.default_time_from, user.default_time_to, user.id))
+    if closeable: cnx.close()
 
-def add_user_to_stack(user, stack):
-    pass
+def create_stack(stack, cnx = None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("INSERT INTO stack (Stack_Name, Lifetime_From, Lifetime_To) VALUES(%s, %s, %s);",
+                    (stack.name, stack.lifetime_from, stack.lifetime_to))
+        cur.execute("SELECT LAST_INSERT_ID();")
+        stack_id = cur.fetchall()[0][0]
+    if closeable: cnx.close()
+    return stack_id
+
+def add_user_to_stack(user, stack, cnx = None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("INSERT INTO user_stack VALUES(%s, %s);",
+                    (user.id, stack.id))
+    if closeable: cnx.close()
+
 def remove_user_from_stack(user,stack):
     pass
-def delete_stack(utack):
+def delete_stack(stack):
     pass
