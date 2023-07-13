@@ -60,7 +60,24 @@ def add_user_to_stack(user, stack, cnx = None):
                     (user.id, stack.id))
     if closeable: cnx.close()
 
-def remove_user_from_stack(user,stack):
-    pass
-def delete_stack(stack):
-    pass
+def remove_user_from_stack(user,stack, cnx=None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("DELETE FROM user_stack WHERE US_Id_User = %s AND US_Id_Stack = %s;",
+                    (user.id, stack.id))
+    if closeable: cnx.close()
+
+def delete_stack(stack, cnx=None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("DELETE FROM stack WHERE Id_Stack = %s;",
+                    (stack.id,))
+    if closeable: cnx.close()
+
+def update_stack(stack, cnx=None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute(
+            "UPDATE user SET User_Name = %s, Last_Timestamp_From = %s, Last_Timestamp_To = %s WHERE Id_User = %s;",
+            (stack.name, stack.default_time_from, stack.default_time_to, stack.id))
+    if closeable: cnx.close()

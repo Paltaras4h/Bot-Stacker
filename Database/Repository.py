@@ -2,8 +2,17 @@ import Database.StackDatabase as db
 from Models.User import User
 from Models.Stack import Stack
 
-def set_user_time_frame(user):
+def set_user_time_frame(user, time_from, time_to):
+    user.default_time_from = time_from
+    user.default_time_to = time_to
     db.update_user(user)
+    return user
+
+def set_stack_time_frame(stack, time_from, time_to):
+    stack.lifetime_from = time_from
+    stack.lifetime_to = time_to
+    db.update_stack(stack)
+    return stack
 
 def get_user(id, name):
     """creates if does not exist"""
@@ -35,11 +44,8 @@ def create_stack(user):
 def add_user_to_stack(user, stack):
     db.add_user_to_stack(user, stack)
 
-def remove_user_from_stack(user):
-    pass
+def remove_user_from_stack(user, stack):
+    db.remove_user_from_stack(user,stack)
 
-def remove_stack():
-    pass
-
-def calculate_lifetime():
-    pass
+def remove_stack(stack):
+    db.delete_stack(stack)
