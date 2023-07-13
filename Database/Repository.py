@@ -2,9 +2,11 @@ import Database.StackDatabase as db
 from Models.User import User
 from Models.Stack import Stack
 
-def set_user_time_frame(user, time_from, time_to):
+def set_user_time_frame(user, time_from, time_to, UTC=None):
     user.default_time_from = time_from
     user.default_time_to = time_to
+    if UTC:
+        user.UTC = UTC
     db.update_user(user)
     return user
 
@@ -18,7 +20,7 @@ def get_user(id, name):
     """creates if does not exist"""
     user = db.select_user(id)
     if user:
-        _user = User(id, name, user[2], user[3])
+        _user = User(id, name, user[2], user[3], user[4])
         if _user.name != user[1]:
             db.update_user(_user)
         return _user

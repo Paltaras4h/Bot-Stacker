@@ -39,8 +39,9 @@ def insert_user(user, cnx = None):
 def update_user(user, cnx = None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
-        cur.execute("UPDATE user SET User_Name = %s, Last_Timestamp_From = %s, Last_Timestamp_To = %s WHERE Id_User = %s;",
-                    (user.name, user.default_time_from, user.default_time_to, user.id))
+        cur.execute("UPDATE user SET User_Name = %s, Last_Timestamp_From = %s, Last_Timestamp_To = %s, UTC = %s"
+                            " WHERE Id_User = %s;",
+                    (user.name, user.default_time_from, user.default_time_to, user.UTC, user.id))
     if closeable: cnx.close()
 
 def create_stack(stack, cnx = None):
