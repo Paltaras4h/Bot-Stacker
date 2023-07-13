@@ -33,39 +33,46 @@ async def htolox(ctx):
 async def go(message):
     user_id, user_name = message.author.id, message.author.name
     user = rep.get_user(user_id, user_name)
-    # if not user.default_time_from:
-    #     embed = discord.Embed(title="Providing Time", description="Please, enter time when you want to start and "
-    #                                                               "finish playing")
-    #     embed.add_field(name="Start Time", value="Enter Start Time")
-    #     embed.add_field(name="End Time", value="Enter End Time")
-    #
-    #     text = await message.send(embed=embed)
-    #
-    #     def check(msg):
-    #         return msg.author == message.author and msg.channel == message.channel
-    #
-    #     try:
-    #         # Waiting for the user's response
-    #         response1 = await bot.wait_for('message', check=check, timeout=30)
-    #         response2 = await bot.wait_for('message', check=check, timeout=30)
-    #
-    #         # Retrieving the user's response
-    #         field1_response = response1.content
-    #         field2_response = response2.content
-    #
-    #         await message.send(f"User ID: {user_id}\nUsername: {user_name}\nField 1 response: {field1_response}")
-    #         await message.send(f"User ID: {user_id}\nUsername: {user_name}\nField 2 response: {field2_response}")
-    #
-    #     except asyncio.TimeoutError:
-    #         await message.send("Response timed out.")
+    if not user.default_time_from:
+        embed_time_zone = discord.Embed(title="Providing Time", description="What is your time now?")
+        embed_time_zone.add_field(name="Your Time", value="Provide Your Current Time")
 
-    dt = datetime(2023, 7, 13, 16, 2, 30)
-    timestamp = discord.utils.format_dt(dt, style='F')
-    await message.send(timestamp)
+        text = await message.send(embed=embed_time_zone)
+        field1_response = None
+
+        def check(msg):
+            return msg.author == message.author and msg.channel == message.channel
+
+        try:
+            # Waiting for the user's response
+            response1 = await bot.wait_for('message', check=check, timeout=30)
+
+            # Retrieving the user's response
+            field1_response = response1.content
+
+            await message.send(f"User ID: {user_id}\nUsername: {user_name}\nField 1 response: {field1_response}")
+
+        except asyncio.TimeoutError:
+            await message.send("Response timed out.")
+
+        separator = None
+        for char in field1_response:
+            if char.isdigit():
+                continue
+            else:
+                separator = char
+                break
+
+        if separator:
+            format_string = '%H' + separator + '%M'
+            dt = datetime.strptime(field1_response, format_string)
+            print(dt)
+        else:
+            print("Time Format Error")
 
 @bot.command()
-async def nego(ctx):
-    await ctx.send("vsetaki go")
+async def иди(ctx):
+    await ctx.send("Sam Poshel")
 
 # Event: Message is received
 @bot.event
