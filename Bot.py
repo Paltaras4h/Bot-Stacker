@@ -129,28 +129,77 @@ async def ask_to_create_or_join_stack(member):
     member_mention = member.mention
 
     view = View()
-    # Add the buttons to the view
-    view.add_item(Button(style=discord.ButtonStyle.primary, label="Create new stack", custom_id="button1"))
+
+    async def create_stack(interaction):
+        # TODO await go()
+        #rep.create_stack(User(member.id, member.name, datetime.now(), datetime.now().replace(hour=22)))
+        await interaction.response.send_message("mnogogo hochesh")
+
+    async def join_stack(interaction):
+        # TODO await send_list()
+        await interaction.response.send_message("mnogogo hochesh")
+
+    create_but = Button(style=discord.ButtonStyle.primary, label="Create new stack",
+                     custom_id="create_stack")
+    create_but.callback = create_stack
+
+    join_but = Button(style=discord.ButtonStyle.primary, label="Join existing stacks",
+                        custom_id="join_stack")
+    join_but.callback = join_stack
+
+    view.add_item(create_but)
     if len(rep.get_stacks())!=0:
-        view.add_item(Button(style=discord.ButtonStyle.primary, label="Join existing stack", custom_id="button2"))
-    # Create the embed message with a field
+        create_but.style = discord.ButtonStyle.secondary
+        view.add_item(join_but)
+
     embed = discord.Embed(title="You want to play? Let's play!", description=f"{member_mention}")
 
     await channel.send(embed=embed, view=view)
 
-    @discord.ui.button(custom_id="button1")
-    async def my_button_click(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await go()
+async def ask_to_leave_stack(member):
+    guild = member.guild
+    channel = discord.utils.get(guild.text_channels, name='бот')  # todo ask for general_chat when adding to server
+    member_mention = member.mention
+    view = View()
 
-    @discord.ui.button(custom_id="button2")
-    async def my_button_click(self, button: discord.ui.Button, interaction: discord.Interaction):
-        #TODO await show_stacks()
-        pass
+    async def remove_from_stack(interaction):
+        rep.remove_user_from_stacks(member.id)
+        await interaction.response.send_message("# You should run!\nSuccessfully removed✔️")
 
-def ask_to_leave_stack():
-    pass
+    button1 = Button(style=discord.ButtonStyle.primary, label="Remove me from all stacks", custom_id="remove_from_stack")
+    button1.callback = remove_from_stack
 
+    view.add_item(button1)
 
+    embed = discord.Embed(title="Watch them run!", description=f"{member_mention}\nDo you want to leave?")
+
+    await channel.send(embed=embed, view=view)
+
+@bot.command()
+async def show_view(ctx):
+    # Create the view
+    view = View()
+
+    # Define button callback functions
+    async def button1_callback(interaction):
+        await interaction.response.send_message("Button 1 clicked!")
+
+    async def button2_callback(interaction):
+        await interaction.response.send_message("Button 2 clicked!")
+
+    # Create the buttons and assign callback functions
+    button1 = Button(style=discord.ButtonStyle.secondary, label="Button 1", custom_id="button1")
+    button1.callback = button1_callback
+
+    button2 = Button(style=discord.ButtonStyle.secondary, label="Button 2", custom_id="button2")
+    button2.callback = button2_callback
+
+    # Add buttons to the view
+    view.add_item(button1)
+    view.add_item(button2)
+
+    # Send the view message
+    await ctx.send("Click a button:", view=view)
 @bot.event
 async def on_voice_state_update(member, before, after):
     # not val and not_afk_channel -> val ask2add
@@ -159,13 +208,14 @@ async def on_voice_state_update(member, before, after):
 
     if before.channel != after.channel:  # Check if channel changed
         is_val_channel = lambda c: "ВАЛЕРІЙ" in str(c) or "ВОЛЕРА🧑" in str(c)
+        afk_channel = after.channel.guild.afk_channel if after.channel else before.channel.guild.afk_channel
 
-        if before.channel is not None and not is_val_channel(before.channel) and before.channel != before.channel.guild.afk_channel and is_val_channel(
+        if not is_val_channel(before.channel) and before.channel != afk_channel and is_val_channel(
                 after.channel):
             await ask_to_create_or_join_stack(member)
-        if after.channel is not None and is_val_channel(before.channel) and not is_val_channel(after.channel) and after.channel != after.channel.guild.afk_channel:
-            await asyncio.sleep(8)
-            ask_to_leave_stack()
+        if is_val_channel(before.channel) and not is_val_channel(after.channel) and after.channel != afk_channel:
+            await asyncio.sleep(1)
+            await ask_to_leave_stack(member)
         if before.channel is not None:  # User left a voice channel
             if is_val_channel(before.channel):
                 await channel_left_handler(member, before.channel)

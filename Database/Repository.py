@@ -29,12 +29,12 @@ def set_stack_time_frame(stack, time_from, time_to):
     db.update_stack(stack)
     return stack
 
-def get_user(id, name):
+def get_user(id, name=None):
     """creates if does not exist"""
     cnx = db.connect_to_data_base(False)
     user = db.select_user(id, cnx=cnx)
     if user:
-        _user = User(id, name, normalize_time(user[2]), normalize_time(user[3]), user[4])
+        _user = User(id, name if name else user[1], normalize_time(user[2]), normalize_time(user[3]), user[4])
         db.update_user(_user, cnx=cnx)
     else:
         _user = User(id, name)
@@ -61,8 +61,11 @@ def create_stack(user):
 def add_user_to_stack(user, stack):
     db.add_user_to_stack(user, stack)
 
-def remove_user_from_stack(user, stack):
-    db.remove_user_from_stack(user,stack)
+def remove_user_from_stacks(user):
+    if type(user) == User:
+        db.remove_user_from_stacks(user.id)
+    else:
+        db.remove_user_from_stacks(user)
 
 def remove_stack(stack):
     db.delete_stack(stack)

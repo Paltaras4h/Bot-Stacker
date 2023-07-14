@@ -61,11 +61,11 @@ def add_user_to_stack(user, stack, cnx = None):
                     (user.id, stack.id))
     if closeable: cnx.close()
 
-def remove_user_from_stack(user,stack, cnx=None):
+def remove_user_from_stacks(user_id, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
-        cur.execute("DELETE FROM user_stack WHERE US_Id_User = %s AND US_Id_Stack = %s;",
-                    (user.id, stack.id))
+        cur.execute("DELETE FROM user_stack WHERE US_Id_User = %s;",
+                    (user_id, ))
     if closeable: cnx.close()
 
 def delete_stack(stack, cnx=None):
