@@ -64,3 +64,6 @@ def remove_user_from_stack(user, stack):
 
 def remove_stack(stack):
     db.delete_stack(stack)
+
+def get_stacks():
+    return [Stack(row[0], row[1], row[2], row[3]) for row in db.get_all_stacks()]
