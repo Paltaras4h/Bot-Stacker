@@ -10,7 +10,7 @@ def normalize_time(time):
     time = now.replace(hour=time.hour, minute=time.minute)
     if time.replace(second=0, microsecond=0) < now.replace(second=0, microsecond=0):
         time += timedelta(days=1)
-    return time
+    return time.replace(second=0, microsecond=0)
 
 def set_user_time_frame(user, time_from, time_to, UTC=None):
     if type(time_from) != datetime or type(time_to) != datetime:
