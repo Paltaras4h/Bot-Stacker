@@ -4,6 +4,8 @@ from Models.Stack import Stack
 from datetime import datetime, timedelta
 
 def normalize_time(time):
+    if not time:
+        return None
     now = datetime.now()
     time = now.replace(hour=time.hour, minute=time.minute)
     if time.replace(second=0, microsecond=0) < now.replace(second=0, microsecond=0):
