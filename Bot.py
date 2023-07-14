@@ -124,7 +124,7 @@ async def on_message(message):
 # v Paltaras4h's code v
 async def ask_to_create_or_join_stack(member):
     guild = member.guild
-    channel = discord.utils.get(guild.text_channels, name='бот')  # Replace 'general' with your desired channel name
+    channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for general_chat when adding to server
     member_mention = member.mention
 
     view = View()
@@ -159,10 +159,10 @@ async def on_voice_state_update(member, before, after):
     if before.channel != after.channel:  # Check if channel changed
         is_val_channel = lambda c: "ВАЛЕРІЙ" in str(c) or "ВОЛЕРА🧑" in str(c)
 
-        if not is_val_channel(before.channel) and before.channel != before.channel.guild.afk_channel and is_val_channel(
+        if before.channel is not None and not is_val_channel(before.channel) and before.channel != before.channel.guild.afk_channel and is_val_channel(
                 after.channel):
             await ask_to_create_or_join_stack(member)
-        if is_val_channel(before.channel) and not is_val_channel(after.channel) and after.channel != after.channel.guild.afk_channel:
+        if after.channel is not None and is_val_channel(before.channel) and not is_val_channel(after.channel) and after.channel != after.channel.guild.afk_channel:
             await asyncio.sleep(8)
             ask_to_leave_stack()
         if before.channel is not None:  # User left a voice channel
