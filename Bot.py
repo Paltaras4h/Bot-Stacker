@@ -102,7 +102,8 @@ async def go(message):
                     user.default_time_from = time_from
                     user.default_time_to = time_to
                     user.UTC = utc
-    #else:
+    else:
+        embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?", description="Do you want to play during prevoiusly stated time or you want to choose new time frame?", colour=0x00ff00)
 
 
 # Event: Message is received
