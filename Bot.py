@@ -153,6 +153,28 @@ async def on_message(message):
 
 
 # v Paltaras4h's code v
+async def send_list(interaction):
+
+    embed_stacks_frame = discord.Embed(title="Choose a stack you want to join", colour=embed_color)
+
+    buttons = []
+    for i,stack in enumerate(rep.get_stacks()):
+        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name}", value="\n".join([user.name for user in rep.get_participants(stack)]))
+        button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
+
+        async def but_callback(inter):
+            rep.add_user_to_stack(rep.get_user(inter.user.id, inter.user.name), stack)#todo adjust stack timeline
+            await inter.response.send_message("Added")
+        button.callback = but_callback
+        buttons.append(button)
+
+    view = View()
+    for but in buttons:
+        view.add_item(but)
+
+    await interaction.response.send_message(embed=embed_stacks_frame, view=view)
+
+
 async def ask_to_create_or_join_stack(member):
     guild = member.guild
     channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for general_chat when adding to server
@@ -162,11 +184,11 @@ async def ask_to_create_or_join_stack(member):
 
     async def create_stack(interaction):
         # TODO await go()
-        #rep.create_stack(User(member.id, member.name, datetime.now(), datetime.now().replace(hour=22)))
+        rep.create_stack(User(member.id, member.name, datetime.now(), datetime.now().replace(hour=23)))
         await interaction.response.send_message("mnogogo hochesh")
 
     async def join_stack(interaction):
-        # TODO await send_list()
+        await send_list(interaction)
         await interaction.response.send_message("mnogogo hochesh")
 
     create_but = Button(style=discord.ButtonStyle.primary, label="Create new stack",
@@ -182,7 +204,7 @@ async def ask_to_create_or_join_stack(member):
         create_but.style = discord.ButtonStyle.secondary
         view.add_item(join_but)
 
-    embed = discord.Embed(title="You want to play? Let's play!", description=f"{member_mention}")
+    embed = discord.Embed(title="You want to play? Let's play!", description=f"{member_mention}", color=embed_color)
 
     await channel.send(embed=embed, view=view)
 
@@ -201,37 +223,40 @@ async def ask_to_leave_stack(member):
 
     view.add_item(button1)
 
-    embed = discord.Embed(title="Watch them run!", description=f"{member_mention}\nDo you want to leave?")
+    embed = discord.Embed(title="Watch them run!", description=f"{member_mention}\nDo you want to leave?", color=embed_color)
 
     await channel.send(embed=embed, view=view)
 
 @bot.command()
 async def t(ctx):
+    pass
     # Create the view
-    view = View()
-
-    # Define button callback functions
-    async def button1_callback(interaction):
-        await interaction.response.send_message("Button 1 clicked!")
-
-    async def button2_callback(interaction):
-        await interaction.response.send_message("Button 2 clicked!")
-
-    # Create the buttons and assign callback functions
-    # button1 = Button(style=discord.ButtonStyle.primary, label="Button 1", custom_id="button1")
-    # button1.callback = button1_callback
+    # view = View()
     #
-    # button2 = Button(style=discord.ButtonStyle.secondary, label="Button 2", custom_id="button2")
-    # button2.callback = button2_callback
-    buts = [Button(style=discord.ButtonStyle.secondary, label=f"Button {i}", custom_id=f"button{i}") for i in range(20)]
-    # Add buttons to the view
-    # view.add_item(button1)
-    # view.add_item(button2)
-    for but in buts:
-        view.add_item(but)
+    # # Define button callback functions
+    # async def button1_callback(interaction):
+    #     await interaction.response.send_message("Button 1 clicked!")
+    #
+    # async def button2_callback(interaction):
+    #     await interaction.response.send_message("Button 2 clicked!")
+    #
+    # # Create the buttons and assign callback functions
+    # # button1 = Button(style=discord.ButtonStyle.primary, label="Button 1", custom_id="button1")
+    # # button1.callback = button1_callback
+    # #
+    # # button2 = Button(style=discord.ButtonStyle.secondary, label="Button 2", custom_id="button2")
+    # # button2.callback = button2_callback
+    # buts = [Button(style=discord.ButtonStyle.secondary, label=f"Button {i}", custom_id=f"button{i}") for i in range(20)]
+    # # Add buttons to the view
+    # # view.add_item(button1)
+    # # view.add_item(button2)
+    # for but in buts:
+    #     view.add_item(but)
 
     # Send the view message
-    await ctx.send("Click a button:", view=view)
+    #await ctx.send("Click a button:", view=view)
+
+
 @bot.event
 async def on_voice_state_update(member, before, after):
     # not val and not_afk_channel -> val ask2add

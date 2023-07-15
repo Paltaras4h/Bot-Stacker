@@ -66,7 +66,7 @@ def get_user(id, name=None):
 
 def create_stack(user):
     """
-    Creates a stack and adds user to it. Adds User timestamps to Stack timestamps.\n
+    Creates a stack and adds user to it. Adds User timestamps to Stack timestamps. Adds user to stack\n
     :returns: Stack object"""
     cnx = db.connect_to_data_base(False)
     stack = Stack(user.name, user.default_time_from, user.default_time_to)
@@ -111,7 +111,7 @@ def get_stacks():
     """
     :return: A list of Stack objects that are currently in database
     """
-    return [Stack(row[0], row[1], row[2], row[3]) for row in db.get_all_stacks()]
+    return [Stack(row[1], row[2], row[3], id=row[0]) for row in db.get_all_stacks()]
 
 def get_participants(stack):
     """
