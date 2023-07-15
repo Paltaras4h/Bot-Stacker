@@ -8,6 +8,7 @@ from Models.User import User
 from Models.Stack import Stack
 import Database.Repository as rep
 from datetime import datetime
+embed_color = 0x4ee21d
 
 
 with open(os.getcwd()+'/venv/configuration.json') as f:
@@ -75,37 +76,48 @@ async def ask_for_time(message, dt_utc):
             await message.send("__**I could not understand what time you have given, could you try once "
                                "more**__")
 
+async def register(message, user):
+    embed_time_zone = discord.Embed(title="Providing Time", description="What is your time now?")
+    embed_time_zone.add_field(name="Your Time", value="Provide Your Current Time")
+
+    await message.send(embed=embed_time_zone)
+
+    utc = await ask_for_time(message, False)
+    if utc:
+        return await update_time(message, user, utc)
+    else:
+        return None
+
+async def update_time(message, user, utc=None):
+    embed_time_frame = discord.Embed(title="When Do You Want to Play?",
+                                     description="Provide Start and End Times "
+                                                 "of Your Game Session", colour=embed_color)
+    embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
+    embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
+
+    await message.send(embed=embed_time_frame)
+    await message.send(f"__**Send Your Start Time:**__")
+    time_from = await ask_for_time(message, True)
+    if time_from:
+        await message.send(f"__**Send Your End Time:**__")
+        time_to = await ask_for_time(message, True)
+        if time_to:
+            return rep.set_user_time_frame(user, time_from, time_to, utc)
+
 @bot.command()
 async def go(message):
     user_id, user_name = message.author.id, message.author.name
     user = rep.get_user(user_id, user_name)
+
     if not user.default_time_from:
-        embed_time_zone = discord.Embed(title="Providing Time", description="What is your time now?")
-        embed_time_zone.add_field(name="Your Time", value="Provide Your Current Time")
-
-        await message.send(embed=embed_time_zone)
-
-        utc = await ask_for_time(message, False)
-
-        if utc:
-            embed_time_frame = discord.Embed(title="When Do You Want to Play?", description="Provide Start and End Times "
-                                                                                            "of Your Game Session", colour=0xff0000)
-            embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
-            embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
-
-            await message.send(embed=embed_time_frame)
-            await message.send(f"__**Send Your Start Time:**__")
-            time_from = await ask_for_time(message, True)
-            if time_from:
-                await message.send(f"__**Send Your End Time:**__")
-                time_to = await ask_for_time(message, True)
-                if time_to:
-                    rep.set_user_time_frame(user, time_from, time_to, utc)
+        user = await register(message, user)
+        if not user:
+            return
     else:
         embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
                                                  description="Do you want to play during previously stated time or "
                                                              "you want to choose new time frame?",
-                                                 colour=0x00ff00)
+                                                 colour=embed_color)
         view = View()
 
         async def keep_time_callback(interaction):
@@ -116,7 +128,7 @@ async def go(message):
 
         keep_time_button = Button(label="Use Previous Time Frame", style=discord.ButtonStyle.blurple)
         keep_time_button.callback = keep_time_callback
-        update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.red)
+        update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.green)
         update_time_button.callback = update_time_callback
 
         view.add_item(keep_time_button)
@@ -124,15 +136,6 @@ async def go(message):
 
         await message.send(embed=embed_choose_time_option, view=view)
 
-
-@bot.event
-async def on_button_click(interaction):
-    if interaction.component.label == "Blue Button":
-        await interaction.respond(content="You clicked the blue button!")
-    elif interaction.component.label == "Red Button":
-        await interaction.respond(content="You clicked the red button!")
-    elif interaction.component.label == "Green Button":
-        await interaction.respond(content="You clicked the green button!")
 
 # Event: Message is received
 @bot.event
