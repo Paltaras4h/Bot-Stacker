@@ -203,7 +203,7 @@ async def ask_to_leave_stack(member):
     await channel.send(embed=embed, view=view)
 
 @bot.command()
-async def show_view(ctx):
+async def t(ctx):
     # Create the view
     view = View()
 
@@ -215,15 +215,17 @@ async def show_view(ctx):
         await interaction.response.send_message("Button 2 clicked!")
 
     # Create the buttons and assign callback functions
-    button1 = Button(style=discord.ButtonStyle.secondary, label="Button 1", custom_id="button1")
-    button1.callback = button1_callback
-
-    button2 = Button(style=discord.ButtonStyle.secondary, label="Button 2", custom_id="button2")
-    button2.callback = button2_callback
-
+    # button1 = Button(style=discord.ButtonStyle.primary, label="Button 1", custom_id="button1")
+    # button1.callback = button1_callback
+    #
+    # button2 = Button(style=discord.ButtonStyle.secondary, label="Button 2", custom_id="button2")
+    # button2.callback = button2_callback
+    buts = [Button(style=discord.ButtonStyle.secondary, label=f"Button {i}", custom_id=f"button{i}") for i in range(20)]
     # Add buttons to the view
-    view.add_item(button1)
-    view.add_item(button2)
+    # view.add_item(button1)
+    # view.add_item(button2)
+    for but in buts:
+        view.add_item(but)
 
     # Send the view message
     await ctx.send("Click a button:", view=view)

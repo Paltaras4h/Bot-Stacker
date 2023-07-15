@@ -54,7 +54,7 @@ def create_stack(stack, cnx = None):
     if closeable: cnx.close()
     return stack_id
 
-def add_user_to_stack(user, stack, cnx = None):
+def add_user_to_stack(user, stack, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute("INSERT INTO user_stack VALUES(%s, %s);",
@@ -91,3 +91,10 @@ def get_all_stacks(cnx=None):
     if closeable: cnx.close()
     return stacks_info
 
+def get_participants_in_stack(stack_id, cnx=None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("SELECT * FROM user INNER JOIN user_stack ON Id_User = US_Id_User WHERE US_Id_Stack = %s",(stack_id,))
+        users_info = cur.fetchall()
+    if closeable: cnx.close()
+    return users_info
