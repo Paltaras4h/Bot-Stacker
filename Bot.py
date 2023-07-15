@@ -7,7 +7,7 @@ import json
 from Models.User import User
 from Models.Stack import Stack
 import Database.Repository as rep
-from datetime import datetime
+from datetime import datetime, timedelta
 embed_color = 0x4ee21d
 
 
@@ -88,22 +88,34 @@ async def register(message, user):
     else:
         return None
 
-async def update_time(message, user, utc=None):
+async def update_time(message, user, utc=None, interaction=None):
     embed_time_frame = discord.Embed(title="When Do You Want to Play?",
                                      description="Provide Start and End Times "
                                                  "of Your Game Session", colour=embed_color)
     embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
     embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
 
-    await message.send(embed=embed_time_frame)
+    if interaction:
+        await interaction.response.send_message(embed=embed_time_frame)
+    else:
+        await message.send(embed=embed_time_frame)
     await message.send(f"__**Send Your Start Time:**__")
     time_from = await ask_for_time(message, True)
     if time_from:
+        if utc:
+            time_from -= timedelta(hours=utc)
+        else:
+            time_from -= timedelta(hours=user.UTC)
         await message.send(f"__**Send Your End Time:**__")
         time_to = await ask_for_time(message, True)
         if time_to:
+            if utc:
+                time_to -= timedelta(hours=utc)
+            else:
+                time_to -= timedelta(hours=user.UTC)
             return rep.set_user_time_frame(user, time_from, time_to, utc)
 
+# todo: Create a button "Now" which will create a stack with starting time equal to current
 @bot.command()
 async def go(message):
     user_id, user_name = message.author.id, message.author.name
@@ -121,10 +133,21 @@ async def go(message):
         view = View()
 
         async def keep_time_callback(interaction):
-            await interaction.response.send_message("You have chosen to keep time frame")
+            await interaction.response.send_message("__**You have kept your time**__")
+            rep.create_stack(user)
+            embed_created_stack = discord.Embed(title="Here We Go!",
+                                                description="Stack with YOUR time frame was created",
+                                                colour=embed_color)
+            await message.send(embed=embed_created_stack)
 
         async def update_time_callback(interaction):
-            await interaction.response.send_message("You have chosen to update time frame")
+            user_updated = await update_time(message, user, interaction=interaction)
+            await message.send("__**You have updated your time**__")
+            rep.create_stack(user_updated)
+            embed_created_stack = discord.Embed(title="Here We Go!",
+                                                description="Stack with UPDATED time frame was created",
+                                                colour=embed_color)
+            await message.send(embed=embed_created_stack)
 
         keep_time_button = Button(label="Use Previous Time Frame", style=discord.ButtonStyle.blurple)
         keep_time_button.callback = keep_time_callback
