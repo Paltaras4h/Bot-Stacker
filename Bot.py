@@ -7,7 +7,7 @@ import json
 from Models.User import User
 from Models.Stack import Stack
 import Database.Repository as rep
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 embed_color = 0x4ee21d
 
 
@@ -176,6 +176,9 @@ async def on_message(message):
 
 
 # v Paltaras4h's code v
+def convert_datetime_to_disc_time(datetime):
+    return discord.utils.format_dt(datetime.replace(tzinfo=timezone.utc), style='t')
+
 def get_user_from_messageable(messageable):
     """
     :param messageable: discord.abc.Messageable abstract class: message, interaction, member
@@ -212,6 +215,15 @@ async def send_message(messageable, message = None, embed=None, view=None):
 async def join(message):
     await send_list(message)
 
+@bot.command()
+async def q(message):
+    await remove_user_from_stacks(message, message.author)
+
+@bot.command()
+async def quit(message):
+    await remove_user_from_stacks(message, message.author)
+
+
 def time_union(datetimes):
 
     return
@@ -224,23 +236,42 @@ async def send_list(messageable, interaction=None):
     for i,stack in enumerate(rep.get_stacks()):
         participants = rep.get_participants(stack)
         users_time_to = [user.default_time_to for user in participants]
-        nearest_users_count = 0 # a count of users that are required to fill a stack to max players
-        far_users_count = 0
+        nearest_users_count = 5 - len(users_time_to) # a count of users that are required to fill a stack to max players
+        far_users_count = 5 - len(users_time_to)
+        near_delta = timedelta(minutes=35)
+        far_delta = timedelta(hours=1, minutes=10)
+        h_time_to_nearest_free_place = None
+        m_time_to_nearest_free_place = 0
+        h_time_to_far_free_place = None
+        m_time_to_far_free_place = 0
         for time in users_time_to:
             if time < stack.lifetime_to + timedelta(minutes=35):
                 nearest_users_count+=1
+                delta = time - stack.lifetime_to
+                if delta < near_delta:
+                    hours = delta.total_seconds() // 3600
+                    h_time_to_nearest_free_place = None if hours == 0 else hours
+                    m_time_to_nearest_free_place = (delta.total_seconds() // 60) % 60
             elif time < stack.lifetime_to + timedelta(hours=1, minutes=10):
                 far_users_count+=1
-        #time_to_nearest_free_place = if time_union(sorted()[1:]) >= stack.lifetime_to + timedelta(minutes=35)
-        #time_to_far_free_place = if time_union(sorted()[1:]) >= stack.lifetime_to + timedelta(minutes=35)
-        #field_value = "\n".join([f"{i+1}.{user.name}" for i,user in enumerate(participants)]+[
-        #    f"need {nearest_users_count} in {time_to_free_place}"if])
-        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name} {stack.lifetime_from.strftime('%H:%M')}-"
-            f"{stack.lifetime_to.strftime('%H:%M')}", value="todo")
+                delta = time - stack.lifetime_to
+                if delta < far_delta:
+                    hours = delta.total_seconds() // 3600
+                    h_time_to_far_free_place = None if hours == 0 else hours
+                    m_time_to_far_free_place = (delta.total_seconds() // 60) % 60
+
+        field_value = "\n".join([f"{i+1}.{user.name}" for i,user in enumerate(participants)]+[
+            f"need {nearest_users_count} in {f'{h_time_to_nearest_free_place}h' if h_time_to_nearest_free_place else ''} "
+            f"{m_time_to_nearest_free_place}m±20min" if nearest_users_count < 3 else "",
+            f"**need {far_users_count} in {f'{h_time_to_far_free_place}h' if h_time_to_far_free_place else ''} "
+            f"{m_time_to_far_free_place}m±20min**" if far_users_count < 3 else ""
+        ])
+        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name} {convert_datetime_to_disc_time(stack.lifetime_from)}-"
+            f"{convert_datetime_to_disc_time(stack.lifetime_to)}", value=field_value)
         button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
 
         async def but_callback(inter):
-            await go(messageable)
+
             user = get_user_from_messageable(messageable)
             rep.add_user_to_stack(rep.get_user(user.id, user.name), stack)#todo adjust stack timeline
             await inter.response.send_message("Added")
@@ -256,10 +287,15 @@ async def send_list(messageable, interaction=None):
         await send_message(messageable, embed=embed_stacks_frame, view=view)
 
 
-async def ask_to_create_or_join_stack(member):
-    guild = member.guild
-    channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for general_chat when adding to server
-    member_mention = member.mention
+async def ask_to_create_or_join_stack(messageable):
+    if type(messageable) == discord.Member:
+        member = messageable # member
+        guild = member.guild
+        channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for general_chat when adding to server
+        member_mention = member.mention
+    else:
+        channel = messageable # message
+        member_mention = channel.author.mention
 
     view = View()
 
@@ -270,7 +306,6 @@ async def ask_to_create_or_join_stack(member):
 
     async def join_stack(interaction):
         await send_list(channel, interaction=interaction)
-        await interaction.response.send_message("mnogogo hochesh")
 
     create_but = Button(style=discord.ButtonStyle.green, label="Create new stack",
                      custom_id="create_stack")
@@ -289,6 +324,10 @@ async def ask_to_create_or_join_stack(member):
 
     await channel.send(embed=embed, view=view)
 
+async def remove_user_from_stacks(messageable, user):
+    rep.remove_user_from_stacks(user.id)
+    await send_message(messageable, "# You should run!\nSuccessfully removed✔️")
+
 async def ask_to_leave_stack(member):
     guild = member.guild
     channel = discord.utils.get(guild.text_channels, name='бот')  # todo ask for general_chat when adding to server
@@ -296,8 +335,7 @@ async def ask_to_leave_stack(member):
     view = View()
 
     async def remove_from_stack(interaction):
-        rep.remove_user_from_stacks(member.id)
-        await interaction.response.send_message("# You should run!\nSuccessfully removed✔️")
+        await remove_user_from_stacks(interaction, member)
 
     button1 = Button(style=discord.ButtonStyle.primary, label="Remove me from all stacks", custom_id="remove_from_stack")
     button1.callback = remove_from_stack
@@ -310,10 +348,7 @@ async def ask_to_leave_stack(member):
 
 @bot.command()
 async def t(ctx):
-    embed = discord.Embed(title="123",
-                          color=embed_color)
-    embed.add_field(name = "1234567890123456",value="asdasdasd\nasdasdas\n__**asdasdasd**__")
-    await ctx.send(embed=embed)
+    await ask_to_create_or_join_stack(ctx)
 
 
 @bot.event

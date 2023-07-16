@@ -1,18 +1,21 @@
 import Database.StackDatabase as db
 from Models.User import User
 from Models.Stack import Stack
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-def normalize_time(time):
+def normalize_timeframe(time_from, time_to):
     """:param time datetime with correct hours and minutes
     :return: datetime with today's date and time's time"""
-    if not time:
+    if not time_from or not time_to:
         return None
-    now = datetime.now()
-    time = now.replace(hour=time.hour, minute=time.minute)
-    if time.replace(second=0, microsecond=0) < now.replace(second=0, microsecond=0):
-        time += timedelta(days=1)
-    return time.replace(second=0, microsecond=0)
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    time_from = now.replace(hour=time_from.hour, minute=time_from.minute, second=0, microsecond=0)
+    time_to = now.replace(hour=time_to.hour, minute=time_to.minute, second=0, microsecond=0)
+    if time_from < now and time_from+timedelta(days=1) < time_to:
+        time_from += timedelta(days=1)
+    if time_to < now and time_from < time_to+timedelta(days=1):
+        time_to += timedelta(days=1)
+    return time_from.replace(second=0, microsecond=0), time_to.replace(second=0, microsecond=0)
 
 def set_user_time_frame(user, time_from, time_to, UTC=None):
     """:param user: User object with correct id
@@ -23,8 +26,7 @@ def set_user_time_frame(user, time_from, time_to, UTC=None):
     if type(time_from) != datetime or type(time_to) != datetime:
         raise TypeError("Об'єкт Datetime передавай в time_from й time_to, уася")
 
-    user.default_time_from = normalize_time(time_from)
-    user.default_time_to = normalize_time(time_to)
+    user.default_time_from, user.default_time_to = normalize_timeframe(time_from, time_to)
     if UTC:
         if type(UTC)!=int:
             raise TypeError("Об'єкт int передавай в UTC, уася")
@@ -54,7 +56,8 @@ def get_user(id, name=None):
     cnx = db.connect_to_data_base(False)
     user = db.select_user(id, cnx=cnx)
     if user:
-        _user = User(id, name if name else user[1], normalize_time(user[2]), normalize_time(user[3]), user[4])
+        time_from, time_to = normalize_timeframe(user[2], user[3])
+        _user = User(id, name if name else user[1], time_from, time_to, user[4])
         db.update_user(_user, cnx=cnx)
     else:
         _user = User(id, name)
