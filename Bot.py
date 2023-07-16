@@ -115,7 +115,7 @@ async def update_time(message, user, utc=None, interaction=None):
                 time_to -= timedelta(hours=user.UTC)
             return rep.set_user_time_frame(user, time_from, time_to, utc)
 
-# todo: Create a button "Now" which will create a stack with starting time equal to current
+# todo: Create a button "Now" which will set user starting time to current
 @bot.command()
 async def go(message):
     user_id, user_name = message.author.id, message.author.name
@@ -176,17 +176,73 @@ async def on_message(message):
 
 
 # v Paltaras4h's code v
-async def send_list(interaction):
+def get_user_from_messageable(messageable):
+    """
+    :param messageable: discord.abc.Messageable abstract class: message, interaction, member
+    :exception TypeError: Passed parameter does not implement discord.abc.Messageable or have no user attributes
+    :return: User object
+    """
+    user = None
+    if type(messageable) == discord.Member:
+        user = messageable
+    try:
+        user = messageable.author # message
+    except AttributeError:
+        try:
+            user = messageable.user # interaction
+        except AttributeError:
+            raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no user attributes")
+
+    return rep.get_user(user.id, user.name)
+
+async def send_message(messageable, message = None, embed=None, view=None):
+    """
+    :param messageable: discord.abc.Messageable abstract class: message, interaction
+    :exception TypeError: Passed parameter does not implement discord.abc.Messageable or have no send message functions
+    """
+    try:
+        await messageable.send(message, embed=embed, view=view)
+    except AttributeError:
+        try:
+            await messageable.response.send_message(message, embed=embed, view=view)
+        except AttributeError:
+            raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no user attributes")
+
+@bot.command()
+async def join(message):
+    await send_list(message)
+
+def time_union(datetimes):
+
+    return
+
+async def send_list(messageable, interaction=None):
 
     embed_stacks_frame = discord.Embed(title="Choose a stack you want to join", colour=embed_color)
 
     buttons = []
     for i,stack in enumerate(rep.get_stacks()):
-        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name}", value="\n".join([user.name for user in rep.get_participants(stack)]))
+        participants = rep.get_participants(stack)
+        users_time_to = [user.default_time_to for user in participants]
+        nearest_users_count = 0 # a count of users that are required to fill a stack to max players
+        far_users_count = 0
+        for time in users_time_to:
+            if time < stack.lifetime_to + timedelta(minutes=35):
+                nearest_users_count+=1
+            elif time < stack.lifetime_to + timedelta(hours=1, minutes=10):
+                far_users_count+=1
+        #time_to_nearest_free_place = if time_union(sorted()[1:]) >= stack.lifetime_to + timedelta(minutes=35)
+        #time_to_far_free_place = if time_union(sorted()[1:]) >= stack.lifetime_to + timedelta(minutes=35)
+        #field_value = "\n".join([f"{i+1}.{user.name}" for i,user in enumerate(participants)]+[
+        #    f"need {nearest_users_count} in {time_to_free_place}"if])
+        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name} {stack.lifetime_from.strftime('%H:%M')}-"
+            f"{stack.lifetime_to.strftime('%H:%M')}", value="todo")
         button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
 
         async def but_callback(inter):
-            rep.add_user_to_stack(rep.get_user(inter.user.id, inter.user.name), stack)#todo adjust stack timeline
+            await go(messageable)
+            user = get_user_from_messageable(messageable)
+            rep.add_user_to_stack(rep.get_user(user.id, user.name), stack)#todo adjust stack timeline
             await inter.response.send_message("Added")
         button.callback = but_callback
         buttons.append(button)
@@ -194,8 +250,10 @@ async def send_list(interaction):
     view = View()
     for but in buttons:
         view.add_item(but)
-
-    await interaction.response.send_message(embed=embed_stacks_frame, view=view)
+    if interaction:
+        await send_message(interaction, embed=embed_stacks_frame, view=view)
+    else:
+        await send_message(messageable, embed=embed_stacks_frame, view=view)
 
 
 async def ask_to_create_or_join_stack(member):
@@ -211,14 +269,14 @@ async def ask_to_create_or_join_stack(member):
         await interaction.response.send_message("mnogogo hochesh")
 
     async def join_stack(interaction):
-        await send_list(interaction)
+        await send_list(channel, interaction=interaction)
         await interaction.response.send_message("mnogogo hochesh")
 
-    create_but = Button(style=discord.ButtonStyle.primary, label="Create new stack",
+    create_but = Button(style=discord.ButtonStyle.green, label="Create new stack",
                      custom_id="create_stack")
     create_but.callback = create_stack
 
-    join_but = Button(style=discord.ButtonStyle.primary, label="Join existing stacks",
+    join_but = Button(style=discord.ButtonStyle.green, label="Join existing stacks",
                         custom_id="join_stack")
     join_but.callback = join_stack
 
@@ -252,32 +310,10 @@ async def ask_to_leave_stack(member):
 
 @bot.command()
 async def t(ctx):
-    pass
-    # Create the view
-    # view = View()
-    #
-    # # Define button callback functions
-    # async def button1_callback(interaction):
-    #     await interaction.response.send_message("Button 1 clicked!")
-    #
-    # async def button2_callback(interaction):
-    #     await interaction.response.send_message("Button 2 clicked!")
-    #
-    # # Create the buttons and assign callback functions
-    # # button1 = Button(style=discord.ButtonStyle.primary, label="Button 1", custom_id="button1")
-    # # button1.callback = button1_callback
-    # #
-    # # button2 = Button(style=discord.ButtonStyle.secondary, label="Button 2", custom_id="button2")
-    # # button2.callback = button2_callback
-    # buts = [Button(style=discord.ButtonStyle.secondary, label=f"Button {i}", custom_id=f"button{i}") for i in range(20)]
-    # # Add buttons to the view
-    # # view.add_item(button1)
-    # # view.add_item(button2)
-    # for but in buts:
-    #     view.add_item(but)
-
-    # Send the view message
-    #await ctx.send("Click a button:", view=view)
+    embed = discord.Embed(title="123",
+                          color=embed_color)
+    embed.add_field(name = "1234567890123456",value="asdasdasd\nasdasdas\n__**asdasdasd**__")
+    await ctx.send(embed=embed)
 
 
 @bot.event

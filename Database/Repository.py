@@ -83,8 +83,15 @@ def add_user_to_stack(user, stack):
     :param stack: Stack object: should be created using create_stack(user) func
     :return: None
     """
+    cnx = db.connect_to_data_base(False)
     if user.default_time_to and user.default_time_from and user.UTC:
-        db.add_user_to_stack(user, stack)
+        db.add_user_to_stack(user, stack, cnx)
+
+        stack.lifetime_from = max(user.default_time_from, stack.lifetime_from)
+        stack.lifetime_to = min(user.default_time_to, stack.lifetime_to)
+        db.update_stack(stack, cnx)
+        cnx.commit()
+        cnx.close()
     else:
         raise ValueError("User have no timestamps or UTC")
 
