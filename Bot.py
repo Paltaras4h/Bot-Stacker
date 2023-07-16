@@ -7,7 +7,7 @@ import json
 from Models.User import User
 from Models.Stack import Stack
 import Database.Repository as rep
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 embed_color = 0x4ee21d
 
 
@@ -95,10 +95,7 @@ async def update_time(message, user, utc=None, interaction=None):
     embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
     embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
 
-    if interaction:
-        await interaction.response.send_message(embed=embed_time_frame)
-    else:
-        await message.send(embed=embed_time_frame)
+    await message.send(embed=embed_time_frame)
     await message.send(f"__**Send Your Start Time:**__")
     time_from = await ask_for_time(message, True)
     if time_from:
@@ -130,28 +127,42 @@ async def go(message):
                                                  description="Do you want to play during previously stated time or "
                                                              "you want to choose new time frame?",
                                                  colour=embed_color)
+        embed_choose_time_option.add_field(name="Keep Time Frame",
+                                           value=f"Use Time Frame: {discord.utils.format_dt(user.default_time_from.replace(tzinfo=timezone.utc), style='t')} - "
+                                        f"{discord.utils.format_dt(user.default_time_to.replace(tzinfo=timezone.utc), style='t')}")
+        embed_choose_time_option.add_field(name="Update Time Frame",
+                                           value="Provide new time frame and use it to create a stack")
         view = View()
+        keep_time_button = Button(label="Keep Time Frame", style=discord.ButtonStyle.blurple)
+        update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.green)
 
         async def keep_time_callback(interaction):
-            await interaction.response.send_message("__**You have kept your time**__")
-            rep.create_stack(user)
-            embed_created_stack = discord.Embed(title="Here We Go!",
-                                                description="Stack with YOUR time frame was created",
-                                                colour=embed_color)
-            await message.send(embed=embed_created_stack)
+            if interaction.user.id == user.id:
+                await message.send("__**You have kept your time**__")
+                keep_time_button.disabled = True
+                update_time_button.disabled = True
+                await interaction.response.edit_message(view=view)
+                rep.create_stack(user)
+                embed_created_stack = discord.Embed(title="Here We Go!",
+                                                    description="Stack with KEPT time frame was created",
+                                                    colour=embed_color)
+                await message.send(embed=embed_created_stack)
 
         async def update_time_callback(interaction):
-            user_updated = await update_time(message, user, interaction=interaction)
-            await message.send("__**You have updated your time**__")
-            rep.create_stack(user_updated)
-            embed_created_stack = discord.Embed(title="Here We Go!",
-                                                description="Stack with UPDATED time frame was created",
-                                                colour=embed_color)
-            await message.send(embed=embed_created_stack)
+            if interaction.user.id == user.id:
+                keep_time_button.disabled = True
+                update_time_button.disabled = True
+                await interaction.response.edit_message(view=view)
+                user_updated = await update_time(message, user, interaction=interaction)
+                if user_updated:
+                    await message.send("__**You have updated your time**__")
+                    rep.create_stack(user_updated)
+                    embed_created_stack = discord.Embed(title="Here We Go!",
+                                                        description="Stack with UPDATED time frame was created",
+                                                        colour=embed_color)
+                    await message.send(embed=embed_created_stack)
 
-        keep_time_button = Button(label="Use Previous Time Frame", style=discord.ButtonStyle.blurple)
         keep_time_button.callback = keep_time_callback
-        update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.green)
         update_time_button.callback = update_time_callback
 
         view.add_item(keep_time_button)
