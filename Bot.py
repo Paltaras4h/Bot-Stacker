@@ -112,6 +112,56 @@ async def update_time(message, user, utc=None, interaction=None):
                 time_to -= timedelta(hours=user.UTC)
             return rep.set_user_time_frame(user, time_from, time_to, utc)
 
+async def time_option_choice(message, user, join_create):
+    embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
+                                             description="Do you want to play during previously stated time or "
+                                                         "you want to choose new time frame?",
+                                             colour=embed_color)
+    embed_choose_time_option.add_field(name="Keep Time Frame",
+                                       value=f"Use Time Frame: {discord.utils.format_dt(user.default_time_from.replace(tzinfo=timezone.utc), style='t')} - "
+                                             f"{discord.utils.format_dt(user.default_time_to.replace(tzinfo=timezone.utc), style='t')}")
+    embed_choose_time_option.add_field(name="Update Time Frame",
+                                       value="Provide new time frame and use it to create a stack")
+    view = View()
+    keep_time_button = Button(label="Keep Time Frame", style=discord.ButtonStyle.blurple)
+    update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.green)
+
+    async def keep_time_callback(interaction):
+        if interaction.user.id == user.id:
+            await message.send("__**You have kept your time**__")
+            keep_time_button.disabled = True
+            update_time_button.disabled = True
+            await interaction.response.edit_message(view=view)
+            if not join_create:
+                rep.create_stack(user)
+                embed_created_stack = discord.Embed(title="Here We Go!",
+                                                    description="Stack with KEPT time frame was created",
+                                                    colour=embed_color)
+                await message.send(embed=embed_created_stack)
+
+    async def update_time_callback(interaction):
+        if interaction.user.id == user.id:
+            keep_time_button.disabled = True
+            update_time_button.disabled = True
+            await interaction.response.edit_message(view=view)
+            user_updated = await update_time(message, user, interaction=interaction)
+            if user_updated:
+                await message.send("__**You have updated your time**__")
+                if not join_create:
+                    rep.create_stack(user_updated)
+                    embed_created_stack = discord.Embed(title="Here We Go!",
+                                                        description="Stack with UPDATED time frame was created",
+                                                        colour=embed_color)
+                    await message.send(embed=embed_created_stack)
+
+    keep_time_button.callback = keep_time_callback
+    update_time_button.callback = update_time_callback
+
+    view.add_item(keep_time_button)
+    view.add_item(update_time_button)
+
+    await message.send(embed=embed_choose_time_option, view=view)
+
 # todo: Create a button "Now" which will set user starting time to current
 @bot.command()
 async def go(message):
@@ -123,52 +173,7 @@ async def go(message):
         if not user:
             return
     else:
-        embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
-                                                 description="Do you want to play during previously stated time or "
-                                                             "you want to choose new time frame?",
-                                                 colour=embed_color)
-        embed_choose_time_option.add_field(name="Keep Time Frame",
-                                           value=f"Use Time Frame: {discord.utils.format_dt(user.default_time_from.replace(tzinfo=timezone.utc), style='t')} - "
-                                        f"{discord.utils.format_dt(user.default_time_to.replace(tzinfo=timezone.utc), style='t')}")
-        embed_choose_time_option.add_field(name="Update Time Frame",
-                                           value="Provide new time frame and use it to create a stack")
-        view = View()
-        keep_time_button = Button(label="Keep Time Frame", style=discord.ButtonStyle.blurple)
-        update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.green)
-
-        async def keep_time_callback(interaction):
-            if interaction.user.id == user.id:
-                await message.send("__**You have kept your time**__")
-                keep_time_button.disabled = True
-                update_time_button.disabled = True
-                await interaction.response.edit_message(view=view)
-                rep.create_stack(user)
-                embed_created_stack = discord.Embed(title="Here We Go!",
-                                                    description="Stack with KEPT time frame was created",
-                                                    colour=embed_color)
-                await message.send(embed=embed_created_stack)
-
-        async def update_time_callback(interaction):
-            if interaction.user.id == user.id:
-                keep_time_button.disabled = True
-                update_time_button.disabled = True
-                await interaction.response.edit_message(view=view)
-                user_updated = await update_time(message, user, interaction=interaction)
-                if user_updated:
-                    await message.send("__**You have updated your time**__")
-                    rep.create_stack(user_updated)
-                    embed_created_stack = discord.Embed(title="Here We Go!",
-                                                        description="Stack with UPDATED time frame was created",
-                                                        colour=embed_color)
-                    await message.send(embed=embed_created_stack)
-
-        keep_time_button.callback = keep_time_callback
-        update_time_button.callback = update_time_callback
-
-        view.add_item(keep_time_button)
-        view.add_item(update_time_button)
-
-        await message.send(embed=embed_choose_time_option, view=view)
+        await ask_to_create_or_join_stack(message)
 
 
 # Event: Message is received
@@ -239,7 +244,7 @@ def time_union(datetimes):
 
     return
 
-async def send_list(messageable, interaction=None):
+async def send_list(messageable):
 
     embed_stacks_frame = discord.Embed(title="Choose a stack you want to join", colour=embed_color)
 
@@ -282,20 +287,15 @@ async def send_list(messageable, interaction=None):
         button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
 
         async def but_callback(inter):
-
-            user = get_user_from_messageable(messageable)
-            rep.add_user_to_stack(rep.get_user(user.id, user.name), stack)#todo adjust stack timeline
-            await inter.response.send_message("Added")
+            user = get_user_from_messageable(inter)
+            await time_option_choice(messageable, user, True)
         button.callback = but_callback
         buttons.append(button)
 
     view = View()
     for but in buttons:
         view.add_item(but)
-    if interaction:
-        await send_message(interaction, embed=embed_stacks_frame, view=view)
-    else:
-        await send_message(messageable, embed=embed_stacks_frame, view=view)
+    await send_message(messageable, embed=embed_stacks_frame, view=view)
 
 
 async def ask_to_create_or_join_stack(messageable):
@@ -309,25 +309,32 @@ async def ask_to_create_or_join_stack(messageable):
         member_mention = channel.author.mention
 
     view = View()
+    create_but = Button(style=discord.ButtonStyle.green, label="Create new stack",
+                        custom_id="create_stack")
+    join_but = Button(style=discord.ButtonStyle.green, label="Join existing stacks",
+                      custom_id="join_stack")
 
     async def create_stack(interaction):
         # TODO await go()
-        rep.create_stack(User(member.id, member.name, datetime.now(), datetime.now().replace(hour=23)))
-        await interaction.response.send_message("mnogogo hochesh")
+        if interaction.user.id == get_user_from_messageable(channel).id:
+            create_but.disabled = True
+            join_but.disabled = True
+            await interaction.response.edit_message(view=view)
+            await time_option_choice(messageable, get_user_from_messageable(channel), False)
 
     async def join_stack(interaction):
-        await send_list(channel, interaction=interaction)
+        if interaction.user.id == get_user_from_messageable(channel).id:
+            create_but.disabled = True
+            join_but.disabled = True
+            await interaction.response.edit_message(view=view)
+            await send_list(channel)
 
-    create_but = Button(style=discord.ButtonStyle.green, label="Create new stack",
-                     custom_id="create_stack")
     create_but.callback = create_stack
 
-    join_but = Button(style=discord.ButtonStyle.green, label="Join existing stacks",
-                        custom_id="join_stack")
     join_but.callback = join_stack
 
     view.add_item(create_but)
-    if len(rep.get_stacks())!=0:
+    if len(rep.get_stacks()) != 0:
         create_but.style = discord.ButtonStyle.secondary
         view.add_item(join_but)
 
