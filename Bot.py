@@ -112,7 +112,7 @@ async def update_time(message, user, utc=None, interaction=None):
                 time_to -= timedelta(hours=user.UTC)
             return rep.set_user_time_frame(user, time_from, time_to, utc)
 
-async def time_option_choice(message, user, join_create):
+async def time_option_choice(message, user, join_create, stack=None, interaction=None):
     embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
                                              description="Do you want to play during previously stated time or "
                                                          "you want to choose new time frame?",
@@ -128,7 +128,7 @@ async def time_option_choice(message, user, join_create):
 
     async def keep_time_callback(interaction):
         if interaction.user.id == user.id:
-            await message.send("__**You have kept your time**__")
+            #await message.send("__**You have kept your time**__")
             keep_time_button.disabled = True
             update_time_button.disabled = True
             await interaction.response.edit_message(view=view)
@@ -138,6 +138,9 @@ async def time_option_choice(message, user, join_create):
                                                     description="Stack with KEPT time frame was created",
                                                     colour=embed_color)
                 await message.send(embed=embed_created_stack)
+            else:
+                rep.add_user_to_stack(user, stack)
+                await message.send(f"**Successfully added {user.name} to {stack.name} stack**")
 
     async def update_time_callback(interaction):
         if interaction.user.id == user.id:
@@ -146,13 +149,16 @@ async def time_option_choice(message, user, join_create):
             await interaction.response.edit_message(view=view)
             user_updated = await update_time(message, user, interaction=interaction)
             if user_updated:
-                await message.send("__**You have updated your time**__")
+                #await message.send("__**You have updated your time**__")
                 if not join_create:
                     rep.create_stack(user_updated)
                     embed_created_stack = discord.Embed(title="Here We Go!",
                                                         description="Stack with UPDATED time frame was created",
                                                         colour=embed_color)
                     await message.send(embed=embed_created_stack)
+                else:
+                    rep.add_user_to_stack(user, stack)
+                    await message.send(f"**Successfully added {user.name} to {stack.name} stack**")
 
     keep_time_button.callback = keep_time_callback
     update_time_button.callback = update_time_callback
@@ -160,7 +166,10 @@ async def time_option_choice(message, user, join_create):
     view.add_item(keep_time_button)
     view.add_item(update_time_button)
 
-    await message.send(embed=embed_choose_time_option, view=view)
+    if interaction:
+        await send_message(interaction, embed=embed_choose_time_option, view=view)
+    else:
+        await message.send(embed=embed_choose_time_option, view=view)
 
 # todo: Create a button "Now" which will set user starting time to current
 @bot.command()
@@ -204,13 +213,14 @@ def get_user_from_messageable(messageable):
     user = None
     if type(messageable) == discord.Member:
         user = messageable
-    try:
-        user = messageable.author # message
-    except AttributeError:
+    else:
         try:
-            user = messageable.user # interaction
+            user = messageable.author # message
         except AttributeError:
-            raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no user attributes")
+            try:
+                user = messageable.user # interaction
+            except AttributeError:
+                raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no user attributes")
 
     return rep.get_user(user.id, user.name)
 
@@ -252,45 +262,58 @@ async def send_list(messageable):
     for i,stack in enumerate(rep.get_stacks()):
         participants = rep.get_participants(stack)
         users_time_to = [user.default_time_to for user in participants]
-        nearest_users_count = 5 - len(users_time_to) # a count of users that are required to fill a stack to max players
-        far_users_count = 5 - len(users_time_to)
-        near_delta = timedelta(minutes=35)
-        far_delta = timedelta(hours=1, minutes=10)
-        h_time_to_nearest_free_place = None
-        m_time_to_nearest_free_place = 0
-        h_time_to_far_free_place = None
-        m_time_to_far_free_place = 0
-        for time in users_time_to:
-            if time < stack.lifetime_to + timedelta(minutes=35):
-                nearest_users_count+=1
-                delta = time - stack.lifetime_to
-                if delta < near_delta:
-                    hours = delta.total_seconds() // 3600
-                    h_time_to_nearest_free_place = None if hours == 0 else hours
-                    m_time_to_nearest_free_place = (delta.total_seconds() // 60) % 60
-            elif time < stack.lifetime_to + timedelta(hours=1, minutes=10):
-                far_users_count+=1
-                delta = time - stack.lifetime_to
-                if delta < far_delta:
-                    hours = delta.total_seconds() // 3600
-                    h_time_to_far_free_place = None if hours == 0 else hours
-                    m_time_to_far_free_place = (delta.total_seconds() // 60) % 60
+        field_rows = [f"{i+1}.{user.name}" for i,user in enumerate(participants)]
+        users_count = len(users_time_to)
+        nearest_users_count = 5 - users_count # a count of users that are required to fill a stack to max players
+        far_users_count = 5 - users_count
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if now >= stack.lifetime_from:
+            near_delta = timedelta(minutes=35)
+            far_delta = timedelta(hours=1, minutes=10)
+            h_time_to_nearest_free_place = None
+            m_time_to_nearest_free_place = 0
+            h_time_to_far_free_place = None
+            m_time_to_far_free_place = 0
+            for time in users_time_to:
+                if time < stack.lifetime_to + timedelta(minutes=35):
+                    nearest_users_count+=1
+                    delta = time - now
+                    if delta <= near_delta:
+                        hours = delta.total_seconds() // 3600
+                        h_time_to_nearest_free_place = None if hours == 0 else int(hours)
+                        m_time_to_nearest_free_place = int((delta.total_seconds() // 60) % 60)
+                elif time < stack.lifetime_to + timedelta(hours=1, minutes=10):
+                    far_users_count+=1
+                    delta = time - now
+                    if delta < far_delta:
+                        hours = delta.total_seconds() // 3600
+                        h_time_to_far_free_place = None if hours == 0 else int(hours)
+                        m_time_to_far_free_place = int((delta.total_seconds() // 60) % 60)
 
-        field_value = "\n".join([f"{i+1}.{user.name}" for i,user in enumerate(participants)]+[
-            f"need {nearest_users_count} in {f'{h_time_to_nearest_free_place}h' if h_time_to_nearest_free_place else ''} "
-            f"{m_time_to_nearest_free_place}m±20min" if nearest_users_count < 3 else "",
-            f"**need {far_users_count} in {f'{h_time_to_far_free_place}h' if h_time_to_far_free_place else ''} "
-            f"{m_time_to_far_free_place}m±20min**" if far_users_count < 3 else ""
-        ])
+            field_rows += [
+                f"**need {nearest_users_count} in {f'{h_time_to_nearest_free_place}h' if h_time_to_nearest_free_place else ''}"
+                f'{f"{m_time_to_nearest_free_place}m**±20min" if m_time_to_nearest_free_place != 0 else "NOW**"}'
+                if 3 > nearest_users_count > 0 else "",
+                f"**need {far_users_count} in {f'{h_time_to_far_free_place}h' if h_time_to_far_free_place else ''}"
+                f'{f"{m_time_to_far_free_place}m**±20min" if m_time_to_far_free_place != 0 else "NOW**"}'
+                if 3 > far_users_count > 0 else ""
+            ]
+        if users_count < 5:
+            field_rows+=[f"__**{5 - users_count} to full stack**__"]
+        field_value = "\n".join(field_rows)
         embed_stacks_frame.add_field(name=f"{i+1}-{stack.name} {convert_datetime_to_disc_time(stack.lifetime_from)}-"
             f"{convert_datetime_to_disc_time(stack.lifetime_to)}", value=field_value)
         button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
 
-        async def but_callback(inter):
-            user = get_user_from_messageable(inter)
-            await time_option_choice(messageable, user, True)
-        button.callback = but_callback
+        def create_callback(_stack):
+            async def dynamic_callback(inter):
+                user = get_user_from_messageable(inter)
+                await time_option_choice(messageable, user, True, _stack, interaction=inter)
+            return dynamic_callback
+
+        button.callback = create_callback(stack)
         buttons.append(button)
+
 
     view = View()
     for but in buttons:
@@ -298,7 +321,9 @@ async def send_list(messageable):
     await send_message(messageable, embed=embed_stacks_frame, view=view)
 
 
+
 async def ask_to_create_or_join_stack(messageable):
+    member = None
     if type(messageable) == discord.Member:
         member = messageable # member
         guild = member.guild
@@ -315,15 +340,15 @@ async def ask_to_create_or_join_stack(messageable):
                       custom_id="join_stack")
 
     async def create_stack(interaction):
-        # TODO await go()
-        if interaction.user.id == get_user_from_messageable(channel).id:
+        clicking_user = get_user_from_messageable(member if member else channel)
+        if interaction.user.id == clicking_user.id:
             create_but.disabled = True
             join_but.disabled = True
             await interaction.response.edit_message(view=view)
-            await time_option_choice(messageable, get_user_from_messageable(channel), False)
+            await time_option_choice(messageable, clicking_user, False)
 
     async def join_stack(interaction):
-        if interaction.user.id == get_user_from_messageable(channel).id:
+        if interaction.user.id == get_user_from_messageable(member if member else channel).id:
             create_but.disabled = True
             join_but.disabled = True
             await interaction.response.edit_message(view=view)
@@ -344,7 +369,7 @@ async def ask_to_create_or_join_stack(messageable):
 
 async def remove_user_from_stacks(messageable, user):
     rep.remove_user_from_stacks(user.id)
-    await send_message(messageable, "# You should run!\nSuccessfully removed✔️")
+    await send_message(messageable, f"# You should run!\nSuccessfully removed {user.name} from all stacks✔️")
 
 async def ask_to_leave_stack(member):
     guild = member.guild
@@ -355,12 +380,13 @@ async def ask_to_leave_stack(member):
     async def remove_from_stack(interaction):
         await remove_user_from_stacks(interaction, member)
 
-    button1 = Button(style=discord.ButtonStyle.primary, label="Remove me from all stacks", custom_id="remove_from_stack")
+    button1 = Button(style=discord.ButtonStyle.green, label="Remove me from all stacks", custom_id="remove_from_stack")
     button1.callback = remove_from_stack
 
     view.add_item(button1)
 
-    embed = discord.Embed(title="Watch them run!", description=f"{member_mention}\nDo you want to leave?", color=embed_color)
+    embed = discord.Embed(title="Watch them run!", description=f"{member_mention}\nDo you want to leave all the stacks"
+                                                               f" you are in?", color=embed_color)
 
     await channel.send(embed=embed, view=view)
 

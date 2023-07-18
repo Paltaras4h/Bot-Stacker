@@ -8,7 +8,7 @@ def normalize_timeframe(time_from, time_to):
     :return: datetime with today's date and time's time"""
     if not time_from or not time_to:
         return None
-    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0, tzinfo=None)
     time_from = now.replace(hour=time_from.hour, minute=time_from.minute, second=0, microsecond=0)
     time_to = now.replace(hour=time_to.hour, minute=time_to.minute, second=0, microsecond=0)
     if time_from < now and time_from+timedelta(days=1) < time_to:

@@ -79,7 +79,7 @@ def update_stack(stack, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute(
-            "UPDATE user SET User_Name = %s, Last_Timestamp_From = %s, Last_Timestamp_To = %s WHERE Id_User = %s;",
+            "UPDATE stack SET Stack_Name = %s, Lifetime_From = %s, Lifetime_To = %s WHERE Id_Stack = %s;",
             (stack.name, stack.lifetime_from, stack.lifetime_to, stack.id))
     if closeable: cnx.close()
 
