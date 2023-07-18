@@ -1,7 +1,8 @@
 import asyncio
 import discord
+from discord import SelectOption
 from discord.ext import commands
-from discord.ui import View, Button
+from discord.ui import View, Button, Select
 import os
 import json
 from Models.User import User
@@ -112,6 +113,23 @@ async def update_time(message, user, utc=None, interaction=None):
                 time_to -= timedelta(hours=user.UTC)
             return rep.set_user_time_frame(user, time_from, time_to, utc)
 
+async def notify_about_created_stack(message, interaction, _stack):
+    guild = message.guild
+    channel = discord.utils.get(guild.text_channels,
+                                name='бот')  # guild.system_channel # todo ask for bot_chat when adding to server
+    #channel = guild.system_channel
+    view1 = View()
+    button = Button(label="Join", style=discord.ButtonStyle.green)
+    button.callback = create_join_callback(channel, _stack)
+
+    embed_notify_all_created_stack = discord.Embed(title="New stack has been created!",
+                                                   description=f"{interaction.user.name} created a new stack "
+                                                               f"{get_discord_time(_stack.lifetime_from)}-{get_discord_time(_stack.lifetime_to)}\n"
+                                                               f"sabaka evrivan",#todo @everyone
+                                                   colour=embed_color)
+    view1.add_item(button)
+    await send_message(channel, embed=embed_notify_all_created_stack, view=view1)
+
 async def time_option_choice(message, user, join_create, stack=None, interaction=None):
     embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
                                              description="Do you want to play during previously stated time or "
@@ -133,11 +151,12 @@ async def time_option_choice(message, user, join_create, stack=None, interaction
             update_time_button.disabled = True
             await interaction.response.edit_message(view=view)
             if not join_create:
-                rep.create_stack(user)
+                _stack = rep.create_stack(user)
                 embed_created_stack = discord.Embed(title="Here We Go!",
                                                     description="Stack with KEPT time frame was created",
                                                     colour=embed_color)
                 await message.send(embed=embed_created_stack)
+                await notify_about_created_stack(message, interaction, _stack)
             else:
                 rep.add_user_to_stack(user, stack)
                 await message.send(f"**Successfully added {user.name} to {stack.name} stack**")
@@ -151,11 +170,12 @@ async def time_option_choice(message, user, join_create, stack=None, interaction
             if user_updated:
                 #await message.send("__**You have updated your time**__")
                 if not join_create:
-                    rep.create_stack(user_updated)
+                    _stack = rep.create_stack(user_updated)
                     embed_created_stack = discord.Embed(title="Here We Go!",
                                                         description="Stack with UPDATED time frame was created",
                                                         colour=embed_color)
                     await message.send(embed=embed_created_stack)
+                    await notify_about_created_stack(message, interaction, _stack)
                 else:
                     rep.add_user_to_stack(user, stack)
                     await message.send(f"**Successfully added {user.name} to {stack.name} stack**")
@@ -201,7 +221,7 @@ async def on_message(message):
 
 
 # v Paltaras4h's code v
-def convert_datetime_to_disc_time(datetime):
+def get_discord_time(datetime):
     return discord.utils.format_dt(datetime.replace(tzinfo=timezone.utc), style='t')
 
 def get_user_from_messageable(messageable):
@@ -235,7 +255,7 @@ async def send_message(messageable, message = None, embed=None, view=None):
         try:
             await messageable.response.send_message(message, embed=embed, view=view)
         except AttributeError:
-            raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no user attributes")
+            raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no send message funcs")
 
 @bot.command()
 async def join(message):
@@ -249,10 +269,6 @@ async def q(message):
 async def quit(message):
     await remove_user_from_stacks(message, message.author)
 
-
-def time_union(datetimes):
-
-    return
 
 async def send_list(messageable):
 
@@ -301,19 +317,12 @@ async def send_list(messageable):
         if users_count < 5:
             field_rows+=[f"__**{5 - users_count} to full stack**__"]
         field_value = "\n".join(field_rows)
-        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name} {convert_datetime_to_disc_time(stack.lifetime_from)}-"
-            f"{convert_datetime_to_disc_time(stack.lifetime_to)}", value=field_value)
+        embed_stacks_frame.add_field(name=f"{i+1}-{stack.name} {get_discord_time(stack.lifetime_from)}-"
+            f"{get_discord_time(stack.lifetime_to)}", value=field_value)
         button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
 
-        def create_callback(_stack):
-            async def dynamic_callback(inter):
-                user = get_user_from_messageable(inter)
-                await time_option_choice(messageable, user, True, _stack, interaction=inter)
-            return dynamic_callback
-
-        button.callback = create_callback(stack)
+        button.callback = create_join_callback(messageable, stack)
         buttons.append(button)
-
 
     view = View()
     for but in buttons:
@@ -321,13 +330,22 @@ async def send_list(messageable):
     await send_message(messageable, embed=embed_stacks_frame, view=view)
 
 
+def create_join_callback(messageable, _stack):
+    async def dynamic_callback(inter):
+        user = get_user_from_messageable(inter)
+        if rep.user_participates_in(user, _stack):
+            await inter.response.send_message(f"{user.name}, you already joined this stack.")
+        else:
+            await time_option_choice(messageable, user, True, _stack, interaction=inter)
+
+    return dynamic_callback
 
 async def ask_to_create_or_join_stack(messageable):
     member = None
     if type(messageable) == discord.Member:
         member = messageable # member
         guild = member.guild
-        channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for general_chat when adding to server
+        channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for bot_chat when adding to server
         member_mention = member.mention
     else:
         channel = messageable # message
@@ -373,7 +391,7 @@ async def remove_user_from_stacks(messageable, user):
 
 async def ask_to_leave_stack(member):
     guild = member.guild
-    channel = discord.utils.get(guild.text_channels, name='бот')  # todo ask for general_chat when adding to server
+    channel = discord.utils.get(guild.text_channels, name='бот')  # todo ask for bot_chat when adding to server
     member_mention = member.mention
     view = View()
 
@@ -436,10 +454,55 @@ async def netest(ctx):
     await ctx.send('ne, vsetaki test')
 # ^ Paltaras4h's code ^
 
+@bot.command()
+async def register_bot(ctx):
+    if type(ctx)== discord.Guild:
+        guild = ctx
+    else:
+        guild = ctx.guild
+    # Get a list of text channels in the server
+    text_channels = [channel for channel in guild.text_channels]
+
+    # Create a list of select options for text channels
+    options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in text_channels]
+
+    # Create a select menu with the list of text channels
+    select_menu = discord.ui.Select(placeholder="Select a channel", options=options)
+
+    # Create a view with the select menu
+    view = discord.ui.View()
+    view.add_item(select_menu)
+
+    # Send a message to the system channel with the select menu
+    system_channel = guild.system_channel
+    if system_channel:
+        message = await system_channel.send("Select the channel where bot messages should be sent:", view=view)
+
+        # Wait for the user's selection
+        def check(interaction):
+            return interaction.message.id == message.id and interaction.user == guild.owner
+
+        try:
+            interaction = await bot.wait_for("select_option", check=check, timeout=60.0)
+            selected_channel_id = int(interaction.component[0].value)
+            selected_channel = bot.get_channel(selected_channel_id)
+
+            # Remove the view after capturing the interaction event
+            view.clear_items()
+
+            if selected_channel:
+                await system_channel.send(f"Bot messages will be sent to {selected_channel.mention}.")
+            else:
+                await system_channel.send("Channel not found.")
+        except asyncio.TimeoutError:
+            # Remove the view if the timeout occurs
+            view.clear_items()
+            await system_channel.send("Timeout: No channel selected.")
 
 # Event: Bot joins a server
 @bot.event
 async def on_guild_join(guild):
-    print(f'Bot has joined {guild.name} (ID: {guild.id})')
+    await register_bot(guild)
+
 # Run the bot using your bot token
 bot.run(bot_token)

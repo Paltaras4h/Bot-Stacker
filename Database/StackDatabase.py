@@ -57,8 +57,11 @@ def create_stack(stack, cnx = None):
 def add_user_to_stack(user, stack, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
-        cur.execute("INSERT INTO user_stack VALUES(%s, %s);",
-                    (user.id, stack.id))
+        cur.execute("SELECT * FROM user_stack WHERE US_Id_User = %s AND US_Id_Stack = %s", (user.id, stack.id))
+        if len(cur.fetchall()) == 0:
+            cur.execute("INSERT INTO user_stack VALUES(%s, %s);", (user.id, stack.id))
+        else:
+            raise ValueError("Куда ээ, user already participates in the stack")
     if closeable: cnx.close()
 
 def remove_user_from_stacks(user_id, cnx=None):

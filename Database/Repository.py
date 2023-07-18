@@ -130,3 +130,8 @@ def get_participants(stack):
     """
     return [User(row[0], row[1], row[2], row[3], row[4]) for row in db.get_participants_in_stack(stack.id)]
 
+def user_participates_in(user, stack):
+    for part in get_participants(stack):
+        if part.id == str(user.id):
+            return True
+    return False
