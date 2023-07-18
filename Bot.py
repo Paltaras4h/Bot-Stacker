@@ -97,12 +97,19 @@ async def update_time(message, user, utc=None, interaction=None):
 
     await message.send(embed=embed_time_frame)
     await message.send(f"__**Send Your Start Time:**__")
-    time_from = await ask_for_time(message, True)
+    task_message = asyncio.create_task(ask_for_time(message, True))
+    task_button = asyncio.create_task(now(message, user))
+    done, _ = await asyncio.wait([task_button, task_message], return_when=asyncio.FIRST_COMPLETED)
+    task_completed = done.pop()
+    time_from = await task_completed
+    for task in done:
+        task.cancel()
     if time_from:
-        if utc:
-            time_from -= timedelta(hours=utc)
-        else:
-            time_from -= timedelta(hours=user.UTC)
+        if task_completed == task_message:
+            if utc:
+                time_from -= timedelta(hours=utc)
+            else:
+                time_from -= timedelta(hours=user.UTC)
         await message.send(f"__**Send Your End Time:**__")
         time_to = await ask_for_time(message, True)
         if time_to:
@@ -111,6 +118,32 @@ async def update_time(message, user, utc=None, interaction=None):
             else:
                 time_to -= timedelta(hours=user.UTC)
             return rep.set_user_time_frame(user, time_from, time_to, utc)
+    print("Damn it")
+
+async def now(message, user):
+    view = View()
+    loop = asyncio.get_event_loop()
+    button_clicked = loop.create_future()
+
+    now_button = Button(label="Now", style=discord.ButtonStyle.green)
+
+    async def now_callback(interaction):
+        if interaction.user.id == user.id:
+            now_button.disabled = True
+            await interaction.response.edit_message(view=view)
+            button_clicked.set_result(True)
+
+    now_button.callback = now_callback
+    view.add_item(now_button)
+
+    await message.send(view=view)
+
+    try:
+        await asyncio.wait_for(button_clicked, timeout=30)
+        return datetime.now(timezone.utc).replace(tzinfo=None, second=0, microsecond=0)
+
+    except asyncio.TimeoutError:
+        pass
 
 async def time_option_choice(message, user, join_create, stack=None, interaction=None):
     embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
@@ -121,14 +154,13 @@ async def time_option_choice(message, user, join_create, stack=None, interaction
                                        value=f"Use Time Frame: {discord.utils.format_dt(user.default_time_from.replace(tzinfo=timezone.utc), style='t')} - "
                                              f"{discord.utils.format_dt(user.default_time_to.replace(tzinfo=timezone.utc), style='t')}")
     embed_choose_time_option.add_field(name="Update Time Frame",
-                                       value="Provide new time frame and use it to create a stack")
+                                       value="Provide new time frame and use it to create/join a stack")
     view = View()
     keep_time_button = Button(label="Keep Time Frame", style=discord.ButtonStyle.blurple)
     update_time_button = Button(label="Update Time Frame", style=discord.ButtonStyle.green)
 
     async def keep_time_callback(interaction):
         if interaction.user.id == user.id:
-            #await message.send("__**You have kept your time**__")
             keep_time_button.disabled = True
             update_time_button.disabled = True
             await interaction.response.edit_message(view=view)
@@ -171,7 +203,6 @@ async def time_option_choice(message, user, join_create, stack=None, interaction
     else:
         await message.send(embed=embed_choose_time_option, view=view)
 
-# todo: Create a button "Now" which will set user starting time to current
 @bot.command()
 async def go(message):
     user_id, user_name = message.author.id, message.author.name
