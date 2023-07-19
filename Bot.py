@@ -11,10 +11,12 @@ import Database.Repository as rep
 from datetime import datetime, timedelta, timezone
 embed_color = 0x4ee21d
 
-
-with open(os.getcwd()+'/venv/configuration.json') as f:
-    data = json.load(f)
-
+try:
+    with open(os.getcwd()+'/venv/configuration.json') as f:
+        data = json.load(f)
+except FileNotFoundError:
+    print("Configuration file not found, trying to access environment variables...")
+    data['botApiToken'] = os.environ.get("botApiToken")
 bot_token = data['botApiToken']
 
 # Create an instance of the bot
@@ -537,6 +539,7 @@ async def register_bot(ctx):
 @bot.event
 async def on_guild_join(guild):
     print(f"Joined {guild.id}:{guild.name} server!")
+    await guild.system_channel.send("Hello! Register the bot please:")
     await register_bot(guild)
 
 # Run the bot using your bot token

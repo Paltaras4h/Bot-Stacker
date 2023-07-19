@@ -54,7 +54,13 @@ def add_user_to_stack(user, stack):
 
 #deletes
 def remove_user_from_stack(user, stack):
-    db.remove_user_from_stack(user.id, stack.id)
+    cnx = db.connect_to_data_base(False)
+    db.remove_user_from_stack(user.id, stack.id, cnx=cnx)
+    parts_info = db.get_participants_in_stack(stack.id, cnx=cnx)
+    if len(parts_info)<1:
+        db.delete_stack(stack, cnx=cnx)
+    cnx.commit()
+    cnx.close()
 
 def remove_user_from_stacks(user):
     """
@@ -62,10 +68,17 @@ def remove_user_from_stacks(user):
     :param user: int or User: user id or User object with a correct id
     :return: None
     """
+    cnx = db.connect_to_data_base(False)
     if type(user) == User:
-        db.remove_user_from_stacks(user.id)
+        db.remove_user_from_stacks(user.id,cnx=cnx)
     else:
-        db.remove_user_from_stacks(user)
+        db.remove_user_from_stacks(user,cnx=cnx)
+    for stack in db.get_all_stacks(cnx=cnx):
+        parts_info = db.get_participants_in_stack(stack.id, cnx=cnx)
+        if len(parts_info) < 1:
+            db.delete_stack(stack, cnx=cnx)
+    cnx.commit()
+    cnx.close()
 
 def remove_stack(stack):
     """
@@ -167,6 +180,9 @@ def get_participants(stack):
 def get_bot_channel(guild):
     server_info = db.select_server(guild.id)
     return discord.utils.get(guild.text_channels, id=int(server_info[2]))
+
+def get_playing_users():
+    return [User(record[0], record[1], record[2], record[3], record[4]) for record in db.select_all_participants()]
 
 #bools
 def user_participates_in(user, stack):
