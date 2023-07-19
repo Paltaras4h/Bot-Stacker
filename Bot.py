@@ -1,6 +1,7 @@
 import asyncio
 import discord
-from discord.ext import commands
+from discord import SelectOption
+from discord.ext import commands, tasks
 from discord.ui import View, Button, Select
 import os
 import json
@@ -27,6 +28,7 @@ async def on_ready():
     print(f'Logged in as {bot.user.name}')
     print(f'Bot ID: {bot.user.id}')
     print('------')
+    background_task.start()
 
 # Command: !htolox
 @bot.command()
@@ -152,7 +154,7 @@ async def notify_about_created_stack(message, interaction, _stack):
     channel = guild.system_channel
     view1 = View()
     button = Button(label="Join", style=discord.ButtonStyle.green)
-    button.callback = create_join_callback(channel, _stack)
+    button.callback = create_join_leave_callback(channel, _stack, True)
 
     embed_notify_all_created_stack = discord.Embed(title="New stack has been created!",
                                                    description=f"{interaction.user.name} created a new stack "
@@ -307,9 +309,29 @@ async def leave(message):
 
     for i, stack in enumerate(rep.get_stacks()):
         participants = rep.get_participants(stack)
+        participants_lines = '\n'.join([f"{k+1}. {part.name}" for k, part in enumerate(participants)])
         embed_leave_stack.add_field(name=f"{i+1}. {stack.name} {get_discord_time(stack.lifetime_from)} - "
-                                         f"{get_discord_time(stack.lifetime_to)}", value=[f"{k+1}. {part.name}\n" for k, part in enumerate(participants)])
+                                         f"{get_discord_time(stack.lifetime_to)}", value=participants_lines)
         leave_button = Button(label=f"{i+1}. {stack.name}", style=discord.ButtonStyle.green)
+
+        leave_button.callback = create_join_leave_callback(message, stack, False)
+        view.add_item(leave_button)
+
+    leave_all_button = Button(label="Leave all stacks", style=discord.ButtonStyle.blurple)
+
+    async def leave_all_callback(interaction):
+        user = get_user_from_messageable(interaction)
+        rep.remove_user_from_stacks(user)
+        await interaction.response.send_message(f"**__{user.name}__ has successfully left all the stacks**")
+
+    leave_all_button.callback = leave_all_callback
+    view.add_item(leave_all_button)
+
+    await message.send(embed=embed_leave_stack, view=view)
+
+@tasks.loop(seconds=30)
+async def background_task():
+    print("Done!")
 
 
 async def send_list(messageable):
@@ -363,7 +385,7 @@ async def send_list(messageable):
             f"{get_discord_time(stack.lifetime_to)}", value=field_value)
         button = Button(label=f"{i+1}-{stack.name}", style=discord.ButtonStyle.green)
 
-        button.callback = create_join_callback(messageable, stack)
+        button.callback = create_join_leave_callback(messageable, stack, True)
         buttons.append(button)
 
     view = View()
@@ -372,13 +394,22 @@ async def send_list(messageable):
     await send_message(messageable, embed=embed_stacks_frame, view=view)
 
 
-def create_join_callback(messageable, _stack):
-    async def dynamic_callback(inter):
-        user = get_user_from_messageable(inter)
-        if rep.user_participates_in(user, _stack):
-            await inter.response.send_message(f"{user.name}, you already joined this stack.")
-        else:
-            await time_option_choice(messageable, user, True, _stack, interaction=inter)
+def create_join_leave_callback(messageable, _stack, join_leave):
+    if join_leave:
+        async def dynamic_callback(inter):
+            user = get_user_from_messageable(inter)
+            if rep.user_participates_in(user, _stack):
+                await inter.response.send_message(f"{user.name}, you already joined this stack.")
+            else:
+                await time_option_choice(messageable, user, True, _stack, interaction=inter)
+    else:
+        async def dynamic_callback(inter):
+            user = get_user_from_messageable(inter)
+            if rep.user_participates_in(user, _stack):
+                rep.remove_user_from_stack(user, _stack)
+                await inter.response.send_message(f"**__{user.name}__ has successfully left __{_stack.name}__ stack**")
+            else:
+                await inter.response.send_message(f"**Эу, тебя итак в этом стаке нету, дядя**")
 
     return dynamic_callback
 
