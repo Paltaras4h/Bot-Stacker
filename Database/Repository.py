@@ -1,6 +1,8 @@
 import Database.StackDatabase as db
+import discord
 from Models.User import User
 from Models.Stack import Stack
+from Models.Server import Server
 from datetime import datetime, timedelta, timezone
 
 def normalize_timeframe(time_from, time_to):
@@ -17,6 +19,63 @@ def normalize_timeframe(time_from, time_to):
         time_to += timedelta(days=1)
     return time_from.replace(second=0, microsecond=0), time_to.replace(second=0, microsecond=0)
 
+# creates
+def create_stack(user):
+    """
+    Creates a stack and adds user to it. Adds User timestamps to Stack timestamps. Adds user to stack\n
+    :returns: Stack object"""
+    cnx = db.connect_to_data_base(False)
+    stack = Stack(user.name, user.default_time_from, user.default_time_to)
+    stack_id = db.create_stack(stack, cnx=cnx)
+    stack.id = stack_id
+    db.add_user_to_stack(user, stack, cnx=cnx)
+    cnx.commit()
+    cnx.close()
+    return stack
+
+#updates
+def add_user_to_stack(user, stack):
+    """
+    :param user: User object with timestamps and UTC
+    :param stack: Stack object: should be created using create_stack(user) func
+    :return: None
+    """
+    cnx = db.connect_to_data_base(False)
+    if user.default_time_to and user.default_time_from and user.UTC:
+        db.add_user_to_stack(user, stack, cnx)
+
+        stack.lifetime_from = max(user.default_time_from, stack.lifetime_from)
+        stack.lifetime_to = min(user.default_time_to, stack.lifetime_to)
+        db.update_stack(stack, cnx)
+        cnx.commit()
+        cnx.close()
+    else:
+        raise ValueError("User have no timestamps or UTC")
+
+#deletes
+def remove_user_from_stack(user, stack):
+    db.remove_user_from_stack(user.id, stack.id)
+
+def remove_user_from_stacks(user):
+    """
+    Removes the passed user from all stacks where the user is currently in
+    :param user: int or User: user id or User object with a correct id
+    :return: None
+    """
+    if type(user) == User:
+        db.remove_user_from_stacks(user.id)
+    else:
+        db.remove_user_from_stacks(user)
+
+def remove_stack(stack):
+    """
+    Removes passed stack from database
+    :param stack: Stack object
+    :return: None
+    """
+    db.delete_stack(stack)
+
+#setters
 def set_user_time_frame(user, time_from, time_to, UTC=None):
     """:param user: User object with correct id
     :param time_from: Datetime object with correct time (date is not required)
@@ -47,6 +106,7 @@ def set_stack_time_frame(stack, time_from, time_to):
     db.update_stack(stack)
     return stack
 
+#getters
 def get_user(id, name=None):
     """
     :param id: str, int64 or snowflake: user id
@@ -67,61 +127,35 @@ def get_user(id, name=None):
     cnx.close()
     return _user
 
-def create_stack(user):
-    """
-    Creates a stack and adds user to it. Adds User timestamps to Stack timestamps. Adds user to stack\n
-    :returns: Stack object"""
-    cnx = db.connect_to_data_base(False)
-    stack = Stack(user.name, user.default_time_from, user.default_time_to)
-    stack_id = db.create_stack(stack, cnx=cnx)
-    stack.id = stack_id
-    db.add_user_to_stack(user, stack, cnx=cnx)
-    cnx.commit()
-    cnx.close()
-    return stack
-
-def add_user_to_stack(user, stack):
-    """
-    :param user: User object with timestamps and UTC
-    :param stack: Stack object: should be created using create_stack(user) func
-    :return: None
-    """
-    cnx = db.connect_to_data_base(False)
-    if user.default_time_to and user.default_time_from and user.UTC:
-        db.add_user_to_stack(user, stack, cnx)
-
-        stack.lifetime_from = max(user.default_time_from, stack.lifetime_from)
-        stack.lifetime_to = min(user.default_time_to, stack.lifetime_to)
-        db.update_stack(stack, cnx)
-        cnx.commit()
-        cnx.close()
-    else:
-        raise ValueError("User have no timestamps or UTC")
-
-def remove_user_from_stacks(user):
-    """
-    Removes the passed user from all stacks where the user is currently in
-    :param user: int or User: user id or User object with a correct id
-    :return: None
-    """
-    if type(user) == User:
-        db.remove_user_from_stacks(user.id)
-    else:
-        db.remove_user_from_stacks(user)
-
-def remove_stack(stack):
-    """
-    Removes passed stack from database
-    :param stack: Stack object
-    :return: None
-    """
-    db.delete_stack(stack)
-
 def get_stacks():
     """
     :return: A list of Stack objects that are currently in database
     """
     return [Stack(row[1], row[2], row[3], id=row[0]) for row in db.get_all_stacks()]
+
+def get_server(id, name=None, bot_chat_id=None):
+    """
+    Returns existing Server by id of creates new
+    :param id: server id
+    :param name: *server name: REQUIRED WHILE CREATING NEW SERVER
+    :param bot_chat_id: * chat id where bot sends messages EQUIRED WHILE CREATING NEW SERVER
+    :return: Models.Server object
+    """
+    cnx = db.connect_to_data_base(False)
+    server_info = db.select_server(id, cnx=cnx)
+    if server_info:
+        server = Server(id, name if name else server_info[1], bot_chat_id if bot_chat_id else server_info[2])
+        if name!=server_info[1] or bot_chat_id!=server_info[2]:
+            db.update_server(server, cnx=cnx)
+    else:
+        if not name or not bot_chat_id:
+            raise ValueError("To add a new server to database, name and bot_chat_id are required.")
+        server = Server(id, name, bot_chat_id)
+        db.insert_server(server, cnx=cnx)
+
+    cnx.commit()
+    cnx.close()
+    return server
 
 def get_participants(stack):
     """
@@ -130,6 +164,11 @@ def get_participants(stack):
     """
     return [User(row[0], row[1], row[2], row[3], row[4]) for row in db.get_participants_in_stack(stack.id)]
 
+def get_bot_channel(guild):
+    server_info = db.select_server(guild.id)
+    return discord.utils.get(guild.text_channels, id=int(server_info[2]))
+
+#bools
 def user_participates_in(user, stack):
     for part in get_participants(stack):
         if part.id == str(user.id):

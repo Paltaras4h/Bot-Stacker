@@ -148,9 +148,7 @@ async def now(message, user):
 
 async def notify_about_created_stack(message, interaction, _stack):
     guild = message.guild
-    channel = discord.utils.get(guild.text_channels,
-                                name='бот')  # guild.system_channel # todo ask for bot_chat when adding to server
-    #channel = guild.system_channel
+    channel = guild.system_channel
     view1 = View()
     button = Button(label="Join", style=discord.ButtonStyle.green)
     button.callback = create_join_callback(channel, _stack)
@@ -376,7 +374,7 @@ async def ask_to_create_or_join_stack(messageable):
     if type(messageable) == discord.Member:
         member = messageable # member
         guild = member.guild
-        channel = discord.utils.get(guild.text_channels, name='бот')#todo ask for bot_chat when adding to server
+        channel = rep.get_bot_channel(guild)
         member_mention = member.mention
     else:
         channel = messageable # message
@@ -422,7 +420,7 @@ async def remove_user_from_stacks(messageable, user):
 
 async def ask_to_leave_stack(member):
     guild = member.guild
-    channel = discord.utils.get(guild.text_channels, name='бот')  # todo ask for bot_chat when adding to server
+    channel = rep.get_bot_channel(guild)
     member_mention = member.mention
     view = View()
 
@@ -484,55 +482,49 @@ async def test(ctx):
 async def netest(ctx):
     await ctx.send('ne, vsetaki test')
 # ^ Paltaras4h's code ^
+@bot.event
+async def on_dropdown(interaction):
+    if interaction.custom_id == "channel_select":
+        selected_channel_id = int(interaction.values[0])
+        selected_channel = discord.utils.get(
+            interaction.guild.text_channels, id=selected_channel_id
+        )
+
+        await interaction.user.send(f"Selected channel: #{selected_channel.name}")
 
 @bot.command()
 async def register_bot(ctx):
     if type(ctx)== discord.Guild:
         guild = ctx
+        channel = guild.system_channel
     else:
         guild = ctx.guild
-    # Get a list of text channels in the server
-    text_channels = [channel for channel in guild.text_channels]
+        channel = ctx
+    text_channels = [channel for channel in guild.channels if isinstance(channel, discord.TextChannel)]
 
-    # Create a list of select options for text channels
+    # Create a list of channel names and their corresponding IDs for the select menu
     options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in text_channels]
 
-    # Create a select menu with the list of text channels
-    select_menu = discord.ui.Select(placeholder="Select a channel", options=options)
+    # Create the select menu
+    select = discord.ui.Select(placeholder="Select a channel for bot messages", options=options)
 
-    # Create a view with the select menu
-    view = discord.ui.View()
-    view.add_item(select_menu)
+    async def select_menu_callback(interaction):
+        selected_channel = discord.utils.get(guild.text_channels, id=int(select.values[0]))
+        if selected_channel:
+            await interaction.response.send_message(f"Bot messages will be sent to {selected_channel.mention}.")
+            rep.get_server(guild.id, guild.name, selected_channel.id)
+        else:
+            await interaction.response.send_message("Channel not found.")
+    select.callback = select_menu_callback
 
-    # Send a message to the system channel with the select menu
-    system_channel = guild.system_channel
-    if system_channel:
-        message = await system_channel.send("Select the channel where bot messages should be sent:", view=view)
-
-        # Wait for the user's selection
-        def check(interaction):
-            return interaction.message.id == message.id and interaction.user == guild.owner
-
-        try:
-            interaction = await bot.wait_for("select_option", check=check, timeout=60.0)
-            selected_channel_id = int(interaction.component[0].value)
-            selected_channel = bot.get_channel(selected_channel_id)
-
-            # Remove the view after capturing the interaction event
-            view.clear_items()
-
-            if selected_channel:
-                await system_channel.send(f"Bot messages will be sent to {selected_channel.mention}.")
-            else:
-                await system_channel.send("Channel not found.")
-        except asyncio.TimeoutError:
-            # Remove the view if the timeout occurs
-            view.clear_items()
-            await system_channel.send("Timeout: No channel selected.")
+    view = View()
+    view.add_item(select)
+    await channel.send(view=view)
 
 # Event: Bot joins a server
 @bot.event
 async def on_guild_join(guild):
+    print(f"Joined {guild.id}:{guild.name} server!")
     await register_bot(guild)
 
 # Run the bot using your bot token
