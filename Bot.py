@@ -1,6 +1,5 @@
 import asyncio
 import discord
-from discord import SelectOption
 from discord.ext import commands
 from discord.ui import View, Button, Select
 import os
