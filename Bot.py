@@ -298,16 +298,28 @@ async def q(message):
 async def quit(message):
     await remove_user_from_stacks(message, message.author)
 
+@bot.command()
+async def leave(message):
+    embed_leave_stack = discord.Embed(title="Which stack do you want to leave?", colour=embed_color)
+    view = View()
+    buttons = []
+
+    for i, stack in enumerate(rep.get_stacks()):
+        participants = rep.get_participants(stack)
+        embed_leave_stack.add_field(name=f"{i+1}. {stack.name} {get_discord_time(stack.lifetime_from)} - "
+                                         f"{get_discord_time(stack.lifetime_to)}", value=[f"{k+1}. {part.name}\n" for k, part in enumerate(participants)])
+        leave_button = Button(label=f"{i+1}. {stack.name}", style=discord.ButtonStyle.green)
+
 
 async def send_list(messageable):
 
     embed_stacks_frame = discord.Embed(title="Choose a stack you want to join", colour=embed_color)
 
     buttons = []
-    for i,stack in enumerate(rep.get_stacks()):
+    for i, stack in enumerate(rep.get_stacks()):
         participants = rep.get_participants(stack)
         users_time_to = [user.default_time_to for user in participants]
-        field_rows = [f"{i+1}.{user.name}" for i,user in enumerate(participants)]
+        field_rows = [f"{i+1}.{user.name}" for i, user in enumerate(participants)]
         users_count = len(users_time_to)
         nearest_users_count = 5 - users_count # a count of users that are required to fill a stack to max players
         far_users_count = 5 - users_count
@@ -321,14 +333,14 @@ async def send_list(messageable):
             m_time_to_far_free_place = 0
             for time in users_time_to:
                 if time < stack.lifetime_to + timedelta(minutes=35):
-                    nearest_users_count+=1
+                    nearest_users_count += 1
                     delta = time - now
                     if delta <= near_delta:
                         hours = delta.total_seconds() // 3600
                         h_time_to_nearest_free_place = None if hours == 0 else int(hours)
                         m_time_to_nearest_free_place = int((delta.total_seconds() // 60) % 60)
                 elif time < stack.lifetime_to + timedelta(hours=1, minutes=10):
-                    far_users_count+=1
+                    far_users_count += 1
                     delta = time - now
                     if delta < far_delta:
                         hours = delta.total_seconds() // 3600
