@@ -3,13 +3,24 @@ import mysql.connector
 import json
 from Models.User import User
 
-with open(os.getcwd()+'/venv/configuration.json') as f:
-    data = json.load(f)
+db_config = None
+db_url = None
+try:
+    with open(os.getcwd()+'/venv/configuration.json') as f:
+        data = json.load(f)
+        config = data['dataBaseConfig']
+except FileNotFoundError:
+    print("Configuration file not found, trying to access environment variables...")
+    db_url = os.environ.get("CLEARDB_DATABASE_URL")
 
-config = data['dataBaseConfig']
 # connection
 def connect_to_data_base(autoCommit = True):# Connect to the MySQL database
-    cnx = mysql.connector.connect(**config)
+    if config:
+        cnx = mysql.connector.connect(**config)
+    elif db_url:
+        cnx = mysql.connector.connect(url=db_url)
+    else:
+        raise ValueError("No database configuration")
     cnx.autocommit = autoCommit
     return cnx
 
@@ -133,6 +144,18 @@ def select_server(server_id, cnx=None):
     with cnx.cursor() as cur:
         cur.execute("SELECT * FROM server WHERE Id_Server = %s",
                     (server_id,))
-        server_info = cur.fetchall()[0]
+        server_info = cur.fetchall()
+        if server_info:
+            server_info = server_info[0]
+        else:
+            server_info = None
     if closeable: cnx.close()
     return server_info
+
+def select_all_participants(cnx=None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("SELECT * FROM user INNER JOIN user_stack ON Id_User = US_Id_User")
+        users_info = cur.fetchall()
+    if closeable: cnx.close()
+    return users_info
