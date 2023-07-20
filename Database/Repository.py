@@ -19,6 +19,11 @@ def normalize_timeframe(time_from, time_to):
         time_to += timedelta(days=1)
     return time_from.replace(second=0, microsecond=0), time_to.replace(second=0, microsecond=0)
 
+def recalculate_stack_time(users):
+    time_from = max([user.default_time_from for user in users])
+    time_to = min([user.default_time_to for user in users])
+    return time_from, time_to
+
 # creates
 def create_stack(user):
     """
@@ -59,6 +64,10 @@ def remove_user_from_stack(user, stack):
     parts_info = db.get_participants_in_stack(stack.id, cnx=cnx)
     if len(parts_info)<1:
         db.delete_stack(stack, cnx=cnx)
+    else:
+        stack.lifetime_from, stack.lifetime_to = recalculate_stack_time(
+            [User(p_info[0], p_info[1], p_info[2], p_info[3], p_info[4]) for p_info in parts_info])
+        db.update_stack(stack, cnx=cnx)
     cnx.commit()
     cnx.close()
 
@@ -77,6 +86,10 @@ def remove_user_from_stacks(user):
         parts_info = db.get_participants_in_stack(stack.id, cnx=cnx)
         if len(parts_info) < 1:
             db.delete_stack(stack, cnx=cnx)
+        else:
+            stack.lifetime_from, stack.lifetime_to = recalculate_stack_time(
+                [User(p_info[0], p_info[1], p_info[2], p_info[3], p_info[4]) for p_info in parts_info])
+            db.update_stack(stack, cnx=cnx) #todo remake to update only stacks the user leaved from
     cnx.commit()
     cnx.close()
 

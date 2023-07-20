@@ -12,13 +12,26 @@ try:
 except FileNotFoundError:
     print("Configuration file not found, trying to access environment variables...")
     db_url = os.environ.get("CLEARDB_DATABASE_URL")
+    user_pass, host_port_db = db_url.split("://")[1].split("@")
+    username, password = user_pass.split(":")
+    host_port, database = host_port_db.split("/")
+    if ":" in host_port:
+        hostname, port = host_port.split(":")
+    else:
+        hostname, port = host_port, 3306
+
+    config = {
+        "user": username,
+        "password": password,
+        "host": hostname,
+        "port": int(port),
+        "database": database.split("?")[0]
+    }
 
 # connection
 def connect_to_data_base(autoCommit = True):# Connect to the MySQL database
     if config:
         cnx = mysql.connector.connect(**config)
-    elif db_url:
-        cnx = mysql.connector.connect(url=db_url)
     else:
         raise ValueError("No database configuration")
     cnx.autocommit = autoCommit
@@ -46,7 +59,7 @@ def add_user_to_stack(user, stack, cnx=None):
             raise ValueError("Куда ээ, user already participates in the stack")
     if closeable: cnx.close()
 
-def create_stack(stack, cnx = None):
+def create_stack(stack, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute("INSERT INTO stack (Stack_Name, Lifetime_From, Lifetime_To) VALUES(%s, %s, %s);",
