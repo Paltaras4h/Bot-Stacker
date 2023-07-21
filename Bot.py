@@ -30,7 +30,6 @@ async def on_ready():
     print(f'Logged in as {bot.user.name}')
     print(f'Bot ID: {bot.user.id}')
     print('------')
-    #todo check if server exists in db
     try:
         synced = await bot.tree.sync()
         print(f"synced {len(synced)} command(s)")
@@ -367,22 +366,31 @@ async def leave(inter: discord.Interaction):
     await send_message(inter, embed=embed_leave_stack, view=view)
 
 # Command: !htolox
-@bot.tree.command(name="htolox", description="prints who is lox")
+@bot.tree.command(name="htolox", description="Prints who is lox")
 async def htolox(inter: discord.Interaction):
     await send_message(inter, "zenya")
 
 @bot.tree.command(name="register_bot", description="Choosing a chat for bot messages")
+async def register_bot_command(inter: discord.Interaction):
+    await register_bot(inter)
+
+@bot.tree.command(name="register", description="Change or set your UTC time zone")
+async def register_user(inter: discord.Interaction):
+    await register(inter, get_user_from_messageable(inter))
+
+
 async def register_bot(messageable):
     channel = None
     if type(messageable) == discord.Guild:
         guild = messageable
         channel = guild.system_channel
-    elif type(messageable)==discord.TextChannel:
+    elif type(messageable) == discord.TextChannel:
         guild = messageable.guild
         channel = messageable
     elif type(messageable) == discord.Interaction:
         guild = messageable.guild
-    else: raise TypeError("Unsupported messageable")
+    else:
+        raise TypeError("Unsupported messageable")
 
     text_channels = [channel for channel in guild.channels if isinstance(channel, discord.TextChannel)]
 
@@ -474,7 +482,7 @@ def add_thirty_hour_leave_callbacks(user, channel, view, buttons):
 
 async def send_list(messageable):
 
-    embed_stacks_frame = discord.Embed(title="Let’s turn the tide!", description=f"Choose a stack you want to join",
+    embed_stacks_frame = discord.Embed(title="Let's turn the tide!", description=f"Choose a stack you want to join",
                                        colour=embed_color)
 
     buttons = []
@@ -637,14 +645,14 @@ async def on_voice_state_update(member, before, after):
     #   val -> not_val and not_afk_channel -> wait(5sec) -> ask2leave
 
     if before.channel != after.channel:  # Check if channel changed
-        is_val_channel = lambda c: "ВАЛЕРІЙ" in str(c) or "ВОЛЕРА🧑" in str(c)
+        is_val_channel = lambda c: "ВАЛЕРІЙ" in str(c) or "ВОЛЕРА" in str(c)
         afk_channel = after.channel.guild.afk_channel if after.channel else before.channel.guild.afk_channel
 
         if not is_val_channel(before.channel) and before.channel != afk_channel and is_val_channel(
                 after.channel):
             await ask_to_create_or_join_stack(member)
         if is_val_channel(before.channel) and not is_val_channel(after.channel) and after.channel != afk_channel:
-            await asyncio.sleep(1)
+            await asyncio.sleep(7)
             await ask_to_leave_stack(member)
         if before.channel is not None:  # User left a voice channel
             if is_val_channel(before.channel):
@@ -670,16 +678,6 @@ async def test(ctx):
 async def netest(ctx):
     await ctx.send('ne, vsetaki test')
 
-@bot.event
-async def on_dropdown(interaction):
-    if interaction.custom_id == "channel_select":
-        selected_channel_id = int(interaction.values[0])
-        selected_channel = discord.utils.get(
-            interaction.guild.text_channels, id=selected_channel_id
-        )
-
-        await interaction.user.send(f"Selected channel: #{selected_channel.name}")
-
 # Event: Bot joins a server
 @bot.event
 async def on_guild_join(guild):
@@ -690,4 +688,4 @@ async def on_guild_join(guild):
 if bot_token:
     bot.run(bot_token)
 else:
-    raise ConnectionError("Falied to get bot token from configuration file or env variable")
+    raise ConnectionError("Failed to get bot token from configuration file or env variable")
