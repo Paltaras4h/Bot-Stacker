@@ -84,7 +84,7 @@ async def ask_for_time(messageable, dt_utc): #messageable = message or interacti
                                "more**__")
 
 async def register(inter, user):
-    embed_time_zone = discord.Embed(title="Initiated!", description=f"{message.author.mention}, What is your time now?")
+    embed_time_zone = discord.Embed(title="Initiated!", description=f"{inter.user.mention}, What is your time now?")
     embed_time_zone.add_field(name="Your Time", value="Provide Your Current Time")
 
     channel = await send_message(inter,embed=embed_time_zone)
