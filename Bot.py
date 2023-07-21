@@ -81,7 +81,7 @@ async def ask_for_time(message, dt_utc):
                                "more**__")
 
 async def register(message, user):
-    embed_time_zone = discord.Embed(title="Providing Time", description="What is your time now?")
+    embed_time_zone = discord.Embed(title="Initiated!", description=f"{message.author.mention}, What is your time now?")
     embed_time_zone.add_field(name="Your Time", value="Provide Your Current Time")
 
     await message.send(embed=embed_time_zone)
@@ -93,8 +93,8 @@ async def register(message, user):
         return None
 
 async def update_time(message, user, utc=None, interaction=None):
-    embed_time_frame = discord.Embed(title="When Do You Want to Play?",
-                                     description="Provide Start and End Times "
+    embed_time_frame = discord.Embed(title="**Come on, let’s go!**",
+                                     description=f"{message.author.mention}, Provide Start and End Times "
                                                  "of Your Game Session", colour=embed_color)
     embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
     embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
@@ -121,6 +121,7 @@ async def update_time(message, user, utc=None, interaction=None):
                 time_to -= timedelta(hours=utc)
             else:
                 time_to -= timedelta(hours=user.UTC)
+            await message.send("__**Time was successfully updated**__")
             return rep.set_user_time_frame(user, time_from, time_to, utc)
     print("Damn it")
 
@@ -165,9 +166,10 @@ async def notify_about_created_stack(message, interaction, _stack):
     await send_message(channel, embed=embed_notify_all_created_stack, view=view1)
 
 async def time_option_choice(message, user, join_create, stack=None, interaction=None):
-    embed_choose_time_option = discord.Embed(title="What Time Frame Do You Want to Use?",
-                                             description="Do you want to play during previously stated time or "
-                                                         "you want to choose new time frame?",
+    embed_choose_time_option = discord.Embed(title="Here comes the party!",
+                                             description=f"{message.author.mention}, Do you want to play during "
+                                                         f"previously stated time or you want to choose new time "
+                                                         f"frame?",
                                              colour=embed_color)
     embed_choose_time_option.add_field(name="Keep Time Frame",
                                        value=f"Use Time Frame: {discord.utils.format_dt(user.default_time_from.replace(tzinfo=timezone.utc), style='t')} - "
@@ -322,42 +324,53 @@ async def leave(message):
 
     async def leave_all_callback(interaction):
         user = get_user_from_messageable(interaction)
-        rep.remove_user_from_stacks(user)
-        await interaction.response.send_message(f"**__{user.name}__ has successfully left all the stacks**")
+        if user in rep.get_playing_users():
+            rep.remove_user_from_stacks(user)
+            await interaction.response.send_message(f"**__{interaction.user.mentio}__ has successfully left all the "
+                                                    f"stacks**")
+        else:
+            await interaction.response.send_message(f"**{interaction.user.mention}, you were not participating in any "
+                                                    f"stacks**")
 
     leave_all_button.callback = leave_all_callback
     view.add_item(leave_all_button)
 
     await message.send(embed=embed_leave_stack, view=view)
 
+pause_check = asyncio.Event()
+pause_check.clear()
 @tasks.loop(seconds=30)
 async def user_time_check():
     for guild in bot.guilds:
-        channel = rep.get_bot_channel(guild)
-        playing_users = rep.get_playing_users()
-        dt_now = datetime.now(timezone.utc).replace(tzinfo=None)
-        for user in playing_users:
-            if user.default_time_to <= dt_now:
-                embed_time_is_up = discord.Embed(title="Your Time has Expired",
-                                                 description=f"**__{user.name}__, your stated time is up, do you "
-                                                             f"want to add more time or leave all stacks?**")
-                view = View()
-                buttons = [Button(label="+30 mins", style=discord.ButtonStyle.green),
-                           Button(label="+1 hour", style=discord.ButtonStyle.green),
-                           Button(label="Leave all stacks", style=discord.ButtonStyle.blurple)]
+        if not pause_check.is_set():
+            channel = rep.get_bot_channel(guild)
+            playing_users = rep.get_playing_users()
+            dt_now = datetime.now(timezone.utc).replace(tzinfo=None)
+            for user in playing_users:
+                if user.default_time_to <= dt_now:
+                    member = guild.get_member(user.id)
+                    embed_time_is_up = discord.Embed(title="Your Time has Expired",
+                                                     description=f"**{member.mention}, your stated time is up, do you "
+                                                                 f"want to add more time or leave all stacks?**")
+                    view = View()
+                    buttons = [Button(label="+30 mins", style=discord.ButtonStyle.green),
+                               Button(label="+1 hour", style=discord.ButtonStyle.green),
+                               Button(label="Leave all stacks", style=discord.ButtonStyle.blurple)]
 
-                add_thirty_callback, add_hour_callback, leave_all_callback = \
-                    add_thirty_hour_leave_callbacks(user, channel, view, buttons)
+                    add_thirty_callback, add_hour_callback, leave_all_callback = \
+                        add_thirty_hour_leave_callbacks(user, channel, view, buttons)
 
-                buttons[0].callback = add_thirty_callback
-                buttons[1].callback = add_hour_callback
-                buttons[2].callback = leave_all_callback
+                    buttons[0].callback = add_thirty_callback
+                    buttons[1].callback = add_hour_callback
+                    buttons[2].callback = leave_all_callback
 
-                view.add_item(buttons[0])
-                view.add_item(buttons[1])
-                view.add_item(buttons[2])
+                    view.add_item(buttons[0])
+                    view.add_item(buttons[1])
+                    view.add_item(buttons[2])
 
-                await channel.send(embed=embed_time_is_up, view=view)
+                    await channel.send(embed=embed_time_is_up, view=view)
+                    pause_check.set()
+
 
 @user_time_check.before_loop
 async def before_user_time_check():
@@ -367,19 +380,23 @@ async def before_user_time_check():
 def add_thirty_hour_leave_callbacks(user, channel, view, buttons):
 
     async def add_thirty_callback(interaction):
-        # if interaction.user.id == user.id:
+        print("User:", user.id, type(user.id), "Interaction User:", interaction.user.id, type(interaction.user.id))
+        if interaction.user.id == user.id:
             buttons[0].disabled = True
             await interaction.response.edit_message(view=view)
             user.default_time_to += timedelta(minutes=30)
             rep.set_user_time_frame(user, user.default_time_from, user.default_time_to)
+            pause_check.clear()
             await channel.send(f"Your End Time now is {get_discord_time(user.default_time_to)}")
 
     async def add_hour_callback(interaction):
+        print("User:", user.id, type(user.id), "Interaction User:", interaction.user.id, type(interaction.user.id))
         if interaction.user.id == user.id:
             buttons[1].disabled = True
             await interaction.response.edit_message(view=view)
             user.default_time_to += timedelta(hours=1)
             rep.set_user_time_frame(user, user.default_time_from, user.default_time_to)
+            pause_check.clear()
             await channel.send(f"Your End Time now is {get_discord_time(user.default_time_to)}")
 
     async def leave_all_callback(interaction):
@@ -390,7 +407,8 @@ def add_thirty_hour_leave_callbacks(user, channel, view, buttons):
 
 async def send_list(messageable):
 
-    embed_stacks_frame = discord.Embed(title="Choose a stack you want to join", colour=embed_color)
+    embed_stacks_frame = discord.Embed(title="Let’s turn the tide!", description=f"Choose a stack you want to join",
+                                       colour=embed_color)
 
     buttons = []
     for i, stack in enumerate(rep.get_stacks()):
