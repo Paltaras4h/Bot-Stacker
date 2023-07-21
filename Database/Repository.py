@@ -57,7 +57,7 @@ def remove_user_from_stack(user, stack):
     cnx = db.connect_to_data_base(False)
     db.remove_user_from_stack(user.id, stack.id, cnx=cnx)
     parts_info = db.get_participants_in_stack(stack.id, cnx=cnx)
-    if len(parts_info)<1:
+    if len(parts_info) < 1:
         db.delete_stack(stack, cnx=cnx)
     cnx.commit()
     cnx.close()
@@ -70,10 +70,11 @@ def remove_user_from_stacks(user):
     """
     cnx = db.connect_to_data_base(False)
     if type(user) == User:
-        db.remove_user_from_stacks(user.id,cnx=cnx)
+        db.remove_user_from_stacks(user.id, cnx=cnx)
     else:
-        db.remove_user_from_stacks(user,cnx=cnx)
-    for stack in db.get_all_stacks(cnx=cnx):
+        db.remove_user_from_stacks(user, cnx=cnx)
+    stacks = [Stack(rec[1], rec[2], rec[3], id=rec[0]) for rec in db.get_all_stacks(cnx=cnx)]
+    for stack in stacks:
         parts_info = db.get_participants_in_stack(stack.id, cnx=cnx)
         if len(parts_info) < 1:
             db.delete_stack(stack, cnx=cnx)

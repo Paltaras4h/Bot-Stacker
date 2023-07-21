@@ -28,7 +28,7 @@ async def on_ready():
     print(f'Logged in as {bot.user.name}')
     print(f'Bot ID: {bot.user.id}')
     print('------')
-    background_task.start()
+    user_time_check.start()
 
 # Command: !htolox
 @bot.command()
@@ -286,6 +286,7 @@ async def send_message(messageable, message = None, embed=None, view=None):
     except AttributeError:
         try:
             await messageable.response.send_message(message, embed=embed, view=view)
+            return
         except AttributeError:
             raise TypeError("Passed parameter does not implement discord.abc.Messageable or have no send message funcs")
 
@@ -330,9 +331,62 @@ async def leave(message):
     await message.send(embed=embed_leave_stack, view=view)
 
 @tasks.loop(seconds=30)
-async def background_task():
-    print("Done!")
+async def user_time_check():
+    for guild in bot.guilds:
+        channel = rep.get_bot_channel(guild)
+        playing_users = rep.get_playing_users()
+        dt_now = datetime.now(timezone.utc).replace(tzinfo=None)
+        for user in playing_users:
+            if user.default_time_to <= dt_now:
+                embed_time_is_up = discord.Embed(title="Your Time has Expired",
+                                                 description=f"**__{user.name}__, your stated time is up, do you "
+                                                             f"want to add more time or leave all stacks?**")
+                view = View()
+                buttons = [Button(label="+30 mins", style=discord.ButtonStyle.green),
+                           Button(label="+1 hour", style=discord.ButtonStyle.green),
+                           Button(label="Leave all stacks", style=discord.ButtonStyle.blurple)]
 
+                add_thirty_callback, add_hour_callback, leave_all_callback = \
+                    add_thirty_hour_leave_callbacks(user, channel, view, buttons)
+
+                buttons[0].callback = add_thirty_callback
+                buttons[1].callback = add_hour_callback
+                buttons[2].callback = leave_all_callback
+
+                view.add_item(buttons[0])
+                view.add_item(buttons[1])
+                view.add_item(buttons[2])
+
+                await channel.send(embed=embed_time_is_up, view=view)
+
+@user_time_check.before_loop
+async def before_user_time_check():
+    await bot.wait_until_ready()  # Wait for the bot to be ready before starting the task
+    print("Background task is now running!")
+
+def add_thirty_hour_leave_callbacks(user, channel, view, buttons):
+
+    async def add_thirty_callback(interaction):
+        # if interaction.user.id == user.id:
+            buttons[0].disabled = True
+            await interaction.response.edit_message(view=view)
+            user.default_time_to += timedelta(minutes=30)
+            rep.set_user_time_frame(user, user.default_time_from, user.default_time_to)
+            await channel.send(f"Your End Time now is {get_discord_time(user.default_time_to)}")
+
+    async def add_hour_callback(interaction):
+        if interaction.user.id == user.id:
+            buttons[1].disabled = True
+            await interaction.response.edit_message(view=view)
+            user.default_time_to += timedelta(hours=1)
+            rep.set_user_time_frame(user, user.default_time_from, user.default_time_to)
+            await channel.send(f"Your End Time now is {get_discord_time(user.default_time_to)}")
+
+    async def leave_all_callback(interaction):
+        rep.remove_user_from_stacks(user)
+        await interaction.response.send_message("You have successfully left all the stacks")
+
+    return add_thirty_callback, add_hour_callback, leave_all_callback
 
 async def send_list(messageable):
 

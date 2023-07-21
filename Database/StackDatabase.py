@@ -46,7 +46,7 @@ def add_user_to_stack(user, stack, cnx=None):
             raise ValueError("Куда ээ, user already participates in the stack")
     if closeable: cnx.close()
 
-def create_stack(stack, cnx = None):
+def create_stack(stack, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute("INSERT INTO stack (Stack_Name, Lifetime_From, Lifetime_To) VALUES(%s, %s, %s);",
