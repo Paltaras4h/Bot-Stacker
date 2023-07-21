@@ -168,7 +168,7 @@ def select_server(server_id, cnx=None):
 def select_all_participants(cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
-        cur.execute("SELECT * FROM user INNER JOIN user_stack ON Id_User = US_Id_User")
+        cur.execute("SELECT * FROM user INNER JOIN user_stack ON Id_User = US_Id_User GROUP BY Id_User")
         users_info = cur.fetchall()
     if closeable: cnx.close()
     return users_info
