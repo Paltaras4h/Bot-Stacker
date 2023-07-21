@@ -13,9 +13,7 @@ def normalize_timeframe(time_from, time_to):
     now = datetime.now(timezone.utc).replace(second=0, microsecond=0, tzinfo=None)
     time_from = now.replace(hour=time_from.hour, minute=time_from.minute, second=0, microsecond=0)
     time_to = now.replace(hour=time_to.hour, minute=time_to.minute, second=0, microsecond=0)
-    if time_from < now and time_from+timedelta(days=1) < time_to:
-        time_from += timedelta(days=1)
-    if time_to < now and time_from < time_to+timedelta(days=1):
+    if time_from > time_to:
         time_to += timedelta(days=1)
     return time_from.replace(second=0, microsecond=0), time_to.replace(second=0, microsecond=0)
 
@@ -196,7 +194,7 @@ def get_bot_channel(guild):
     return discord.utils.get(guild.text_channels, id=int(server_info[2]))
 
 def get_playing_users():
-    return [User(record[0], record[1], record[2], record[3], record[4]) for record in db.select_all_participants()]
+    return [User(int(record[0]), record[1], record[2], record[3], record[4]) for record in db.select_all_participants()]
 
 #bools
 def user_participates_in(user, stack):
