@@ -11,13 +11,13 @@ import Database.Repository as rep
 from datetime import datetime, timedelta, timezone
 embed_color = 0x4ee21d
 
+bot_token = None
 try:
     with open(os.getcwd()+'/venv/configuration.json') as f:
-        data = json.load(f)
+        bot_token = json.load(f)['botApiToken']
 except FileNotFoundError:
     print("Configuration file not found, trying to access environment variables...")
-    data['botApiToken'] = os.environ.get("botApiToken")
-bot_token = data['botApiToken']
+    bot_token= os.environ.get("botApiToken")
 
 # Create an instance of the bot
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
@@ -626,5 +626,7 @@ async def on_guild_join(guild):
     await guild.system_channel.send("Hello! Register the bot please:")
     await register_bot(guild)
 
-# Run the bot using your bot token
-bot.run(bot_token)
+if bot_token:
+    bot.run(bot_token)
+else:
+    raise ConnectionError("Falied to get bot token from configuration file or env variable")

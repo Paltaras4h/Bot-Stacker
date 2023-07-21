@@ -12,13 +12,26 @@ try:
 except FileNotFoundError:
     print("Configuration file not found, trying to access environment variables...")
     db_url = os.environ.get("CLEARDB_DATABASE_URL")
+    user_pass, host_port_db = db_url.split("://")[1].split("@")
+    username, password = user_pass.split(":")
+    host_port, database = host_port_db.split("/")
+    if ":" in host_port:
+        hostname, port = host_port.split(":")
+    else:
+        hostname, port = host_port, 3306
+
+    config = {
+        "user": username,
+        "password": password,
+        "host": hostname,
+        "port": int(port),
+        "database": database.split("?")[0]
+    }
 
 # connection
 def connect_to_data_base(autoCommit = True):# Connect to the MySQL database
     if config:
         cnx = mysql.connector.connect(**config)
-    elif db_url:
-        cnx = mysql.connector.connect(url=db_url)
     else:
         raise ValueError("No database configuration")
     cnx.autocommit = autoCommit
