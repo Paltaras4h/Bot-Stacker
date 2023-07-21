@@ -170,7 +170,8 @@ async def notify_about_created_stack(messageable, interaction, _stack):
 
 async def time_option_choice(messageable, user, join_create, stack=None, interaction=None):
     embed_choose_time_option = discord.Embed(title="Here comes the party!",
-                                             description=f"{messageable.user.mention}, Do you want to play during "
+                                             description=f"{messageable.guild.get_member(user.id).mention}"
+                                                         f", Do you want to play during "
                                                          f"previously stated time or you want to choose new time "
                                                          f"frame?",
                                              colour=embed_color)
@@ -196,8 +197,13 @@ async def time_option_choice(messageable, user, join_create, stack=None, interac
                 await send_message(messageable, embed=embed_created_stack)
                 await notify_about_created_stack(messageable, interaction, _stack)
             else:
-                rep.add_user_to_stack(user, stack)
-                await send_message(messageable, f"**Successfully added {user.name} to {stack.name} stack**")
+                if user.default_time_to < stack.lifetime_from:
+                    await send_message(messageable, f"**{user.name}, your time ends before the stack starts "
+                                                    f"{get_discord_time(stack.lifetime_from)}, "
+                                                    f"create a new stack or join another**")
+                else:
+                    rep.add_user_to_stack(user, stack)
+                    await send_message(messageable, f"**Successfully added {user.name} to {stack.name} stack**")
 
     async def update_time_callback(interaction):
         if interaction.user.id == user.id:
@@ -215,8 +221,13 @@ async def time_option_choice(messageable, user, join_create, stack=None, interac
                     await send_message(messageable, embed=embed_created_stack)
                     await notify_about_created_stack(messageable, interaction, _stack)
                 else:
-                    rep.add_user_to_stack(user, stack)
-                    await send_message(messageable, f"**Successfully added {user.name} to {stack.name} stack**")
+                    if user.default_time_to < stack.lifetime_from:
+                        await send_message(messageable, f"**{user.name}, your time ends before the stack starts "
+                                                        f"{get_discord_time(stack.lifetime_from)}, create a new stack"
+                                                        f" or join another**")
+                    else:
+                        rep.add_user_to_stack(user, stack)
+                        await send_message(messageable, f"**Successfully added {user.name} to {stack.name} stack**")
 
     keep_time_button.callback = keep_time_callback
     update_time_button.callback = update_time_callback
@@ -589,7 +600,7 @@ async def ask_to_create_or_join_stack(messageable):
 
     embed = discord.Embed(title="You want to play? Let's play!", description=f"{member_mention}", color=embed_color)
 
-    await send_message(messageable, embed=embed, view=view) if not member else channel.send(embed=embed, view=view)
+    await send_message(messageable, embed=embed, view=view) if not member else await channel.send(embed=embed, view=view)
 
 async def remove_user_from_stacks(messageable, user):
     rep.remove_user_from_stacks(user.id)
