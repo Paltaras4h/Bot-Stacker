@@ -38,9 +38,11 @@ async def on_ready():
     user_time_check.start()
 
 async def ask_for_time(messageable, dt_utc): #messageable = message or interaction
-    user = get_user_from_messageable(messageable)
+    user = messageable.author if type(messageable) == discord.Message else messageable.user
+
     def check(msg):
-        return msg.author.id == user.id and msg.channel == messageable.channel
+        return msg.author.id == user.id and msg.channel == user.dm_channel
+
     field1_response = None
     response1 = None
     while True:
@@ -52,7 +54,7 @@ async def ask_for_time(messageable, dt_utc): #messageable = message or interacti
             field1_response = response1.content
 
         except asyncio.TimeoutError:
-            await send_message(messageable, "__**Response timed out**__")
+            await send_message(user, "__**Response timed out**__")
             return None
 
         separator = ""
@@ -75,18 +77,19 @@ async def ask_for_time(messageable, dt_utc): #messageable = message or interacti
                     return int(hours_time_zone)
                 return dt
             else:
-                await send_message(messageable, "__**I could not understand what time you have given, could you try "
-                                                "once more**__")
+                await send_message(user, "__**I could not understand what time you have given, could you try once "
+                                         "more**__")
                 continue
         except ValueError:
-            await send_message(messageable, "__**I could not understand what time you have given, could you try once "
+            await send_message(user, "__**I could not understand what time you have given, could you try once "
                                "more**__")
 
 async def register(inter, user):
-    embed_time_zone = discord.Embed(title="Initiated!", description=f"{inter.user.mention}, What is your time now?")
+    embed_time_zone = discord.Embed(title="Initiated!", description=f"What is your time now?")
     embed_time_zone.add_field(name="Your Time", value="Provide Your Current Time")
 
-    channel = await send_message(inter,embed=embed_time_zone)
+    # channel = await send_message(inter.user, embed=embed_time_zone)
+    await inter.user.send(embed=embed_time_zone)
 
     utc = await ask_for_time(inter, False)
     if utc:
@@ -101,8 +104,8 @@ async def update_time(messageable, user, utc=None, interaction=None):
     embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
     embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
 
-    await send_message(messageable, embed=embed_time_frame)
-    await send_message(messageable, f"__**Send Your Start Time:**__")
+    await send_message(messageable.user, embed=embed_time_frame)
+    await send_message(messageable.user, f"__**Send Your Start Time:**__")
     task_message = asyncio.create_task(ask_for_time(messageable, True))
     task_button = asyncio.create_task(now(messageable, user))
     done, _ = await asyncio.wait([task_button, task_message], return_when=asyncio.FIRST_COMPLETED)
@@ -116,14 +119,14 @@ async def update_time(messageable, user, utc=None, interaction=None):
                 time_from -= timedelta(hours=utc)
             else:
                 time_from -= timedelta(hours=user.UTC)
-        await send_message(messageable, f"__**Send Your End Time:**__")
+        await send_message(messageable.user, f"__**Send Your End Time:**__")
         time_to = await ask_for_time(messageable, True)
         if time_to:
             if utc:
                 time_to -= timedelta(hours=utc)
             else:
                 time_to -= timedelta(hours=user.UTC)
-            await send_message(messageable, "__**Time was successfully updated**__")
+            await send_message(messageable.user, "__**Time was successfully updated**__")
             return rep.set_user_time_frame(user, time_from, time_to, utc)
     print("Damn it")
 
@@ -143,7 +146,8 @@ async def now(messageable, user):
     now_button.callback = now_callback
     view.add_item(now_button)
 
-    await send_message(messageable, view=view)
+    # await send_message(messageable, view=view)
+    await messageable.user.send(view=view)
 
     try:
         await asyncio.wait_for(button_clicked, timeout=30)
@@ -193,16 +197,17 @@ async def time_option_choice(messageable, user, join_create, stack=None, interac
                 embed_created_stack = discord.Embed(title="Here We Go!",
                                                     description="Stack with KEPT time frame was created",
                                                     colour=embed_color)
-                await send_message(messageable, embed=embed_created_stack)
+                await send_message(messageable.user, embed=embed_created_stack)
                 await notify_about_created_stack(messageable, interaction, _stack)
             else:
                 if user.default_time_to < stack.lifetime_from:
-                    await send_message(messageable, f"**{user.name}, your time ends before the stack starts "
+                    await send_message(messageable.user, f"**{user.name}, your time ends before the stack starts "
                                                     f"{get_discord_time(stack.lifetime_from)}, "
                                                     f"create a new stack or join another**")
                 else:
                     rep.add_user_to_stack(user, stack)
-                    await send_message(messageable, f"**Successfully added {user.name} to {stack.name} stack**")
+                    await send_message(messageable, f"**Successfully added {interaction.user.mention} to"
+                                                    f" __{stack.name}__ stack**")
 
     async def update_time_callback(interaction):
         if interaction.user.id == user.id:
@@ -211,22 +216,22 @@ async def time_option_choice(messageable, user, join_create, stack=None, interac
             await interaction.response.edit_message(view=view)
             user_updated = await update_time(messageable, user, interaction=interaction)
             if user_updated:
-                #await message.send("__**You have updated your time**__")
                 if not join_create:
                     _stack = rep.create_stack(user_updated)
                     embed_created_stack = discord.Embed(title="Here We Go!",
                                                         description="Stack with UPDATED time frame was created",
                                                         colour=embed_color)
-                    await send_message(messageable, embed=embed_created_stack)
+                    await send_message(messageable.user, embed=embed_created_stack)
                     await notify_about_created_stack(messageable, interaction, _stack)
                 else:
                     if user.default_time_to < stack.lifetime_from:
-                        await send_message(messageable, f"**{user.name}, your time ends before the stack starts "
+                        await send_message(messageable.user, f"**{user.name}, your time ends before the stack starts "
                                                         f"{get_discord_time(stack.lifetime_from)}, create a new stack"
                                                         f" or join another**")
                     else:
                         rep.add_user_to_stack(user, stack)
-                        await send_message(messageable, f"**Successfully added {user.name} to {stack.name} stack**")
+                        await send_message(messageable, f"**Successfully added {interaction.user.mention} to"
+                                                        f" __{stack.name}__ stack**")
 
     keep_time_button.callback = keep_time_callback
     update_time_button.callback = update_time_callback
@@ -235,9 +240,9 @@ async def time_option_choice(messageable, user, join_create, stack=None, interac
     view.add_item(update_time_button)
 
     if interaction:
-        await send_message(interaction, embed=embed_choose_time_option, view=view)
+        await send_message(interaction.user, embed=embed_choose_time_option, view=view)
     else:
-        await send_message(messageable, embed=embed_choose_time_option, view=view)
+        await send_message(messageable.user, embed=embed_choose_time_option, view=view)
 
 # Event: Message is received
 @bot.event
@@ -311,7 +316,8 @@ async def send_message(messageable, message=None, embed=None, view=None):
 
 @bot.tree.command(name="go", description="YOU WANT TO PLAY? Create or join stack")
 async def go(inter: discord.Interaction):
-    user = get_user_from_messageable(inter)
+    user_id, user_name = inter.user.id, inter.user.name
+    user = rep.get_user(user_id, user_name)
 
     if not user.default_time_from:
         user = await register(inter, user)
@@ -322,7 +328,11 @@ async def go(inter: discord.Interaction):
 
 @bot.tree.command(name="join", description="YOU WANT TO PLAY? Join stack")
 async def join(inter: discord.Interaction):
-    await send_list(inter)
+    if len(rep.get_stacks()) != 0:
+        await send_list(inter)
+    else:
+        await send_message(inter, "**There are no stacks currently available, but you can always create one, using**"
+                                  " `/go`")
 
 @bot.tree.command(name="q", description="Leave all stacks")
 async def q(inter: discord.Interaction):
@@ -334,41 +344,50 @@ async def quit(inter: discord.Interaction):
 
 @bot.tree.command(name="leave", description="Leave a stack")
 async def leave(inter: discord.Interaction):
-    embed_leave_stack = discord.Embed(title="Which stack do you want to leave?", colour=embed_color)
-    view = View()
-    buttons = []
+    if len(rep.get_stacks()) != 0:
+        embed_leave_stack = discord.Embed(title="Which stack do you want to leave?", colour=embed_color)
+        view = View()
+        buttons = []
 
-    for i, stack in enumerate(rep.get_stacks()):
-        participants = rep.get_participants(stack)
-        participants_lines = '\n'.join([f"{k+1}. {part.name}" for k, part in enumerate(participants)])
-        embed_leave_stack.add_field(name=f"{i+1}. {stack.name} {get_discord_time(stack.lifetime_from)} - "
-                                         f"{get_discord_time(stack.lifetime_to)}", value=participants_lines)
-        leave_button = Button(label=f"{i+1}. {stack.name}", style=discord.ButtonStyle.green)
+        for i, stack in enumerate(rep.get_stacks()):
+            participants = rep.get_participants(stack)
+            participants_lines = '\n'.join([f"{k+1}. {part.name}" for k, part in enumerate(participants)])
+            embed_leave_stack.add_field(name=f"{i+1}. {stack.name} {get_discord_time(stack.lifetime_from)} - "
+                                             f"{get_discord_time(stack.lifetime_to)}", value=participants_lines)
+            leave_button = Button(label=f"{i+1}. {stack.name}", style=discord.ButtonStyle.green)
 
-        leave_button.callback = create_join_leave_callback(inter, stack, False)
-        view.add_item(leave_button)
+            leave_button.callback = create_join_leave_callback(inter, stack, False)
+            view.add_item(leave_button)
 
-    leave_all_button = Button(label="Leave all stacks", style=discord.ButtonStyle.blurple)
+        leave_all_button = Button(label="Leave all stacks", style=discord.ButtonStyle.blurple)
 
-    async def leave_all_callback(interaction):
-        user = get_user_from_messageable(interaction)
-        if user in rep.get_playing_users():
-            rep.remove_user_from_stacks(user)
-            await interaction.response.send_message(f"**__{interaction.user.mentio}__ has successfully left all the "
-                                                    f"stacks**")
-        else:
-            await interaction.response.send_message(f"**{interaction.user.mention}, you were not participating in any "
-                                                    f"stacks**")
+        async def leave_all_callback(interaction):
+            user = get_user_from_messageable(interaction)
+            playing_users = rep.get_playing_users()
+            accept = False
+            for fetched_user in playing_users:
+                if user.id == fetched_user.id:
+                    accept = True
+                    break
+            if accept:
+                rep.remove_user_from_stacks(user)
+                await interaction.response.send_message(f"**__{interaction.user.mention}__ has successfully left all the "
+                                                        f"stacks**")
+            else:
+                await interaction.response.send_message(f"**{interaction.user.mention}, you were not participating in any "
+                                                        f"stacks**")
 
-    leave_all_button.callback = leave_all_callback
-    view.add_item(leave_all_button)
+        leave_all_button.callback = leave_all_callback
+        view.add_item(leave_all_button)
 
-    await send_message(inter, embed=embed_leave_stack, view=view)
+        await send_message(inter, embed=embed_leave_stack, view=view)
+    else:
+        await send_message(inter, f"**{inter.user.mention}, There are no running stacks now**")
 
 # Command: !htolox
 @bot.tree.command(name="htolox", description="Prints who is lox")
 async def htolox(inter: discord.Interaction):
-    await send_message(inter, "zenya")
+    await send_message(inter, "pavel")
 
 @bot.tree.command(name="register_bot", description="Choosing a chat for bot messages")
 async def register_bot_command(inter: discord.Interaction):
@@ -463,7 +482,7 @@ def add_thirty_hour_leave_callbacks(user, channel, view, buttons):
             user.default_time_to += timedelta(minutes=30)
             rep.set_user_time_frame(user, user.default_time_from, user.default_time_to)
             pause_check.clear()
-            await channel.send(f"Your End Time now is {get_discord_time(user.default_time_to)}")
+            await send_message(interaction.user, f"Your End Time now is {get_discord_time(user.default_time_to)}")
 
     async def add_hour_callback(interaction):
         if interaction.user.id == user.id:
@@ -472,16 +491,15 @@ def add_thirty_hour_leave_callbacks(user, channel, view, buttons):
             user.default_time_to += timedelta(hours=1)
             rep.set_user_time_frame(user, user.default_time_from, user.default_time_to)
             pause_check.clear()
-            await channel.send(f"Your End Time now is {get_discord_time(user.default_time_to)}")
+            await send_message(interaction.user, f"Your End Time now is {get_discord_time(user.default_time_to)}")
 
     async def leave_all_callback(interaction):
         rep.remove_user_from_stacks(user)
-        await interaction.response.send_message("You have successfully left all the stacks")
+        await interaction.response.send_message(f"**{interaction.user.mention} has successfully left all the stacks**")
 
     return add_thirty_callback, add_hour_callback, leave_all_callback
 
 async def send_list(messageable):
-
     embed_stacks_frame = discord.Embed(title="Let's turn the tide!", description=f"Choose a stack you want to join",
                                        colour=embed_color)
 
@@ -546,7 +564,7 @@ def create_join_leave_callback(messageable, _stack, join_leave):
         async def dynamic_callback(inter):
             user = get_user_from_messageable(inter)
             if rep.user_participates_in(user, _stack):
-                await inter.response.send_message(f"{user.name}, you already joined this stack.")
+                await inter.response.send_message(f"{inter.user.mention}, You have already joined this stack.")
             else:
                 await time_option_choice(messageable, user, True, _stack, interaction=inter)
     else:
@@ -554,7 +572,8 @@ def create_join_leave_callback(messageable, _stack, join_leave):
             user = get_user_from_messageable(inter)
             if rep.user_participates_in(user, _stack):
                 rep.remove_user_from_stack(user, _stack)
-                await inter.response.send_message(f"**__{user.name}__ has successfully left __{_stack.name}__ stack**")
+                await inter.response.send_message(f"**__{inter.user.mention}__ has successfully left __{_stack.name}__ "
+                                                  f"stack**")
             else:
                 await inter.response.send_message(f"**Эу, тебя итак в этом стаке нету, дядя**")
 
