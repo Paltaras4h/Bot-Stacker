@@ -166,7 +166,7 @@ async def notify_about_created_stack(messageable, interaction, _stack):
     embed_notify_all_created_stack = discord.Embed(title="New stack has been created!",
                                                    description=f"{interaction.user.name} created a new stack "
                                                                f"{get_discord_time(_stack.lifetime_from)}-{get_discord_time(_stack.lifetime_to)}\n"
-                                                               f"sabaka evrivan",#todo @everyone
+                                                               f"@everyone",
                                                    colour=embed_color)
     view1.add_item(button)
     await send_message(channel, embed=embed_notify_all_created_stack, view=view1)
@@ -318,8 +318,8 @@ async def send_message(messageable, message=None, embed=None, view=None):
 async def go(inter: discord.Interaction):
     user_id, user_name = inter.user.id, inter.user.name
     user = rep.get_user(user_id, user_name)
-
     if not user.default_time_from:
+        await send_message(inter,f"{inter.user.mention}, check your private messages")
         user = await register(inter, user)
         if not user:
             return
@@ -387,7 +387,7 @@ async def leave(inter: discord.Interaction):
 # Command: !htolox
 @bot.tree.command(name="htolox", description="Prints who is lox")
 async def htolox(inter: discord.Interaction):
-    await send_message(inter, "pavel")
+    await send_message(inter, "ne zenyia")
 
 @bot.tree.command(name="register_bot", description="Choosing a chat for bot messages")
 async def register_bot_command(inter: discord.Interaction):
