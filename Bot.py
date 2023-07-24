@@ -38,7 +38,8 @@ async def on_ready():
     user_time_check.start()
 
 async def ask_for_time(messageable, dt_utc): #messageable = message or interaction
-    user = messageable.author if type(messageable) == discord.Message else messageable.user
+    user = messageable.author if type(messageable) == discord.Message else messageable.user \
+        if type(messageable)!=discord.Member else messageable
 
     def check(msg):
         return msg.author.id == user.id and msg.channel == user.dm_channel
@@ -98,14 +99,15 @@ async def register(inter, user):
         return None
 
 async def update_time(messageable, user, utc=None, interaction=None):
+    messageable_user = messageable.guild.get_member(user.id) # if messageable == member
     embed_time_frame = discord.Embed(title="**Come on, let’s go!**",
-                                     description=f"{messageable.user.mention}, Provide Start and End Times "
+                                     description=f"{messageable_user.mention}, Provide Start and End Times "
                                                  "of Your Game Session", colour=embed_color)
     embed_time_frame.add_field(name="Start Time", value="Enter Start Time in First Message")
     embed_time_frame.add_field(name="End Time", value="Enter End Time in Second Message")
 
-    await send_message(messageable.user, embed=embed_time_frame)
-    await send_message(messageable.user, f"__**Send Your Start Time:**__")
+    await send_message(messageable_user, embed=embed_time_frame)
+    await send_message(messageable_user, f"__**Send Your Start Time:**__")
     task_message = asyncio.create_task(ask_for_time(messageable, True))
     task_button = asyncio.create_task(now(messageable, user))
     done, _ = await asyncio.wait([task_button, task_message], return_when=asyncio.FIRST_COMPLETED)
@@ -119,14 +121,14 @@ async def update_time(messageable, user, utc=None, interaction=None):
                 time_from -= timedelta(hours=utc)
             else:
                 time_from -= timedelta(hours=user.UTC)
-        await send_message(messageable.user, f"__**Send Your End Time:**__")
+        await send_message(messageable_user, f"__**Send Your End Time:**__")
         time_to = await ask_for_time(messageable, True)
         if time_to:
             if utc:
                 time_to -= timedelta(hours=utc)
             else:
                 time_to -= timedelta(hours=user.UTC)
-            await send_message(messageable.user, "__**Time was successfully updated**__")
+            await send_message(messageable_user, "__**Time was successfully updated**__")
             return rep.set_user_time_frame(user, time_from, time_to, utc)
     print("Damn it")
 
@@ -147,7 +149,7 @@ async def now(messageable, user):
     view.add_item(now_button)
 
     # await send_message(messageable, view=view)
-    await messageable.user.send(view=view)
+    await messageable.guild.get_member(user.id).send(view=view)
 
     try:
         await asyncio.wait_for(button_clicked, timeout=30)
@@ -642,7 +644,8 @@ async def ask_to_leave_stack(member):
     async def remove_from_stack(interaction):
         await remove_user_from_stacks(interaction, member)
 
-    button1 = Button(style=discord.ButtonStyle.green, label="Remove me from all stacks", custom_id="remove_from_stack")
+    button1 = Button(style=discord.ButtonStyle.green, label=f"Remove {member.name} from all stacks",
+                     custom_id="remove_from_stack")
     button1.callback = remove_from_stack
 
     view.add_item(button1)
@@ -656,23 +659,29 @@ async def ask_to_leave_stack(member):
 async def t(ctx):
     await ask_to_create_or_join_stack(ctx)
 
-
+finished_leaving = {user.id: True for user in rep.get_playing_users()}
 @bot.event
 async def on_voice_state_update(member, before, after):
     # not val and not_afk_channel -> val ask2add
     # if user is in stack:
     #   val -> not_val and not_afk_channel -> wait(5sec) -> ask2leave
-
+    playing_users = rep.get_playing_users()
     if before.channel != after.channel:  # Check if channel changed
         is_val_channel = lambda c: "ВАЛЕРІЙ" in str(c) or "ВОЛЕРА" in str(c)
         afk_channel = after.channel.guild.afk_channel if after.channel else before.channel.guild.afk_channel
 
         if not is_val_channel(before.channel) and before.channel != afk_channel and is_val_channel(
                 after.channel):
-            await ask_to_create_or_join_stack(member)
+            finished_leaving[member.id] = True
+            if int(member.id) not in [int(user.id) for user in playing_users]:
+                await ask_to_create_or_join_stack(member)
         if is_val_channel(before.channel) and not is_val_channel(after.channel) and after.channel != afk_channel:
-            await asyncio.sleep(7)
-            await ask_to_leave_stack(member)
+            if int(member.id) in [int(user.id) for user in playing_users]:
+                finished_leaving[member.id] = False
+                await asyncio.sleep(7)
+                if not finished_leaving[member.id]:
+                    finished_leaving[member.id] = True
+                    await ask_to_leave_stack(member)
         if before.channel is not None:  # User left a voice channel
             if is_val_channel(before.channel):
                 await channel_left_handler(member, before.channel)
