@@ -72,8 +72,8 @@ def create_stack(stack, cnx=None):
 def insert_server(server, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
-        cur.execute("INSERT INTO server VALUES(%s, %s, %s);",
-                    (server.id, server.name, server.bot_chat_id))
+        cur.execute("INSERT INTO server VALUES(%s, %s, %s, %s);",
+                    (server.id, server.name, server.bot_chat_id, server.chat_thread_id))
     if closeable: cnx.close()
     return server.id
 
@@ -98,8 +98,8 @@ def update_server(server, cnx=None):
     cnx, closeable = get_connection(cnx)
     with cnx.cursor() as cur:
         cur.execute(
-            "UPDATE server SET Name = %s, Bot_Chat_Id = %s WHERE Id_Server = %s;",
-            (server.name, server.bot_chat_id, server.id))
+            "UPDATE server SET Name = %s, Bot_Chat_Id = %s, Thread_Id = %s WHERE Id_Server = %s;",
+            (server.name, server.bot_chat_id, server.chat_thread_id, server.id))
     if closeable: cnx.close()
 
 #deletes
@@ -122,6 +122,13 @@ def delete_stack(stack, cnx=None):
     with cnx.cursor() as cur:
         cur.execute("DELETE FROM stack WHERE Id_Stack = %s;",
                     (stack.id,))
+    if closeable: cnx.close()
+
+def delete_user(user_id, cnx=None):
+    cnx, closeable = get_connection(cnx)
+    with cnx.cursor() as cur:
+        cur.execute("DELETE FROM user WHERE Id_User = %s;",
+                    (user_id,))
     if closeable: cnx.close()
 
 #selects

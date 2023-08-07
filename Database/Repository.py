@@ -100,6 +100,9 @@ def remove_stack(stack):
     """
     db.delete_stack(stack)
 
+def delete_user(user_id):
+    db.delete_user(user_id)
+
 #setters
 def set_user_time_frame(user, time_from, time_to, UTC=None):
     """:param user: User object with correct id
@@ -158,9 +161,9 @@ def get_stacks():
     """
     return [Stack(row[1], row[2], row[3], id=row[0]) for row in db.get_all_stacks()]
 
-def get_server(id, name=None, bot_chat_id=None):
+def get_server(id, name=None, bot_chat_id=None, chat_thread_id=None):
     """
-    Returns existing Server by id of creates new
+    Returns existing Server by id or creates new
     :param id: server id
     :param name: *server name: REQUIRED WHILE CREATING NEW SERVER
     :param bot_chat_id: * chat id where bot sends messages EQUIRED WHILE CREATING NEW SERVER
@@ -169,13 +172,14 @@ def get_server(id, name=None, bot_chat_id=None):
     cnx = db.connect_to_data_base(False)
     server_info = db.select_server(id, cnx=cnx)
     if server_info:
-        server = Server(id, name if name else server_info[1], bot_chat_id if bot_chat_id else server_info[2])
-        if name!=server_info[1] or bot_chat_id!=server_info[2]:
+        server = Server(id, name if name else server_info[1], bot_chat_id if bot_chat_id else server_info[2],
+                        chat_thread_id if chat_thread_id else server_info[3])
+        if name!=server_info[1] or bot_chat_id!=server_info[2] or chat_thread_id!=server_info[3]:
             db.update_server(server, cnx=cnx)
     else:
-        if not name or not bot_chat_id:
-            raise ValueError("To add a new server to database, name and bot_chat_id are required.")
-        server = Server(id, name, bot_chat_id)
+        if not name or not bot_chat_id or not chat_thread_id:
+            raise ValueError("To add a new server to database, name, bot_chat_id and chat_thread_id are required.")
+        server = Server(id, name, bot_chat_id, chat_thread_id)
         db.insert_server(server, cnx=cnx)
 
     cnx.commit()
@@ -189,8 +193,23 @@ def get_participants(stack):
     """
     return [User(row[0], row[1], row[2], row[3], row[4]) for row in db.get_participants_in_stack(stack.id)]
 
+def get_participants_dict(stacks):
+    '''
+    :return: dictionary with {Stack:[Users]}
+    '''
+    cnx = db.connect_to_data_base(False)
+    participants = {}
+    for stack in stacks:
+        participants[stack] = [User(row[0], row[1], row[2], row[3], row[4])
+                               for row in db.get_participants_in_stack(stack.id, cnx=cnx)]
+    cnx.commit()
+    cnx.close()
+    return participants
+
 def get_bot_channel(guild):
     server_info = db.select_server(guild.id)
+    if server_info is None:
+        raise ValueError("*Server with such id was not found in the database")
     return discord.utils.get(guild.text_channels, id=int(server_info[2]))
 
 def get_playing_users():
